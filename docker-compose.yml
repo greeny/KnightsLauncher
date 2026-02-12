@@ -1,0 +1,16 @@
+services:
+    build:
+        build: .
+        volumes:
+            - .:/app
+            # Keep node_modules and Rust artifacts inside the container
+            # to avoid host/container OS conflicts
+            - /app/node_modules
+            - cargo-registry:/root/.cargo/registry
+            - cargo-git:/root/.cargo/git
+            - cargo-target:/app/src-tauri/target
+
+volumes:
+    cargo-registry:
+    cargo-git:
+    cargo-target:
