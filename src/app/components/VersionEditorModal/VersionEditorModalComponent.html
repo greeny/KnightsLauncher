@@ -1,0 +1,160 @@
+@if (isOpen) {
+	<div class="modal-backdrop fade show"></div>
+	<div class="modal show d-block" tabindex="-1">
+		<div class="modal-dialog modal-lg modal-dialog-scrollable">
+			<div class="modal-content">
+
+				<div class="modal-header">
+					<h5 class="modal-title">
+						@if (isConfirmingDelete) {
+							Confirm Delete
+						} @else {
+							{{title}}
+						}
+					</h5>
+					<button type="button" class="btn-close"
+						(click)="close()"
+						[disabled]="state === ModalState.Saving || isConfirmingDelete"
+					></button>
+				</div>
+
+				<div class="modal-body">
+					@if (isConfirmingDelete) {
+						<div class="alert alert-danger mb-0">
+							<p class="mb-2"><strong>Remove "{{name}}" from the launcher?</strong></p>
+							<p class="mb-0 small">Game files will not be deleted. You can re-add this version later if needed.</p>
+						</div>
+					} @else {
+						@if (state === ModalState.Error) {
+							<div class="alert alert-danger mb-3">{{errorMessage}}</div>
+						}
+
+						<!-- Basic Zone -->
+						<div class="mb-3">
+							<label class="form-label">Installation folder</label>
+							<div class="input-group">
+								<input type="text" class="form-control"
+									[(ngModel)]="folderPath"
+									readonly
+									placeholder="(none selected)"
+								/>
+								<button class="btn btn-outline-secondary" type="button"
+									(click)="browseFolderPath()"
+									[disabled]="state === ModalState.Saving || isDetecting"
+								>
+									@if (isDetecting) {
+										<span class="spinner-border spinner-border-sm me-1" role="status"></span>Detecting…
+									} @else {
+										Browse…
+									}
+								</button>
+							</div>
+						</div>
+
+						<div class="mb-3">
+							<label class="form-label">Name</label>
+							<input type="text" class="form-control"
+								[(ngModel)]="name"
+								placeholder="Display name for this installation"
+								[disabled]="state === ModalState.Saving"
+							/>
+						</div>
+
+						<!-- Advanced Zone -->
+						<div class="mt-4 pt-3 border-top">
+							<button type="button" class="btn btn-link btn-sm text-decoration-none p-0"
+								(click)="toggleAdvanced()"
+							>
+								@if (showAdvanced) {
+									▼ Hide Advanced
+								} @else {
+									▶ Show Advanced
+								}
+							</button>
+
+							@if (showAdvanced) {
+								<div class="mt-3">
+									<div class="mb-3">
+										<label class="form-label">Launch command</label>
+										<input type="text" class="form-control"
+											[(ngModel)]="launchArgs"
+											placeholder="(optional, use %exe% for executable name)"
+											[disabled]="state === ModalState.Saving"
+										/>
+										<small class="text-secondary d-block mt-1">Leave empty to use default launcher. Use %exe% as placeholder.</small>
+									</div>
+
+									<div class="mb-3">
+										<label class="form-label">Executable path</label>
+										<div class="input-group">
+											<input type="text" class="form-control"
+												[(ngModel)]="executablePath"
+												placeholder="Path to KaM_Remake.exe"
+												[disabled]="state === ModalState.Saving"
+											/>
+											<button class="btn btn-outline-secondary" type="button"
+												(click)="browseExecutablePath()"
+												[disabled]="state === ModalState.Saving"
+											>Browse…</button>
+										</div>
+									</div>
+
+									<div class="mb-3">
+										<label class="form-label">Version</label>
+										<input type="text" class="form-control"
+											[(ngModel)]="detectedVersion"
+											placeholder="e.g. r6720"
+											[disabled]="state === ModalState.Saving"
+										/>
+										<small class="text-secondary d-block mt-1">Auto-detected from folder or installer file. Can be edited manually.</small>
+									</div>
+								</div>
+							}
+						</div>
+					}
+				</div>
+
+				<div class="modal-footer">
+					@if (isConfirmingDelete) {
+						<button type="button" class="btn btn-secondary"
+							(click)="cancelDelete()"
+						>Keep It</button>
+						<button type="button" class="btn btn-danger"
+							(click)="confirmDelete()"
+							[disabled]="state === ModalState.Saving"
+						>
+							@if (state === ModalState.Saving) {
+								<span class="spinner-border spinner-border-sm me-1" role="status"></span>Removing…
+							} @else {
+								Delete Permanently
+							}
+						</button>
+					} @else {
+						<div class="me-auto">
+							@if (_editingPath !== null) {
+								<button type="button" class="btn btn-danger"
+									(click)="delete()"
+									[disabled]="state !== ModalState.Ready"
+								>Delete</button>
+							}
+						</div>
+						<button type="button" class="btn btn-secondary"
+							(click)="close()"
+							[disabled]="state === ModalState.Saving"
+						>Cancel</button>
+						<button type="button" class="btn btn-primary"
+							(click)="save()"
+							[disabled]="!canSave"
+						>
+							@if (state === ModalState.Saving) {
+								<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving…
+							} @else {
+								Save
+							}
+						</button>
+					}
+				</div>
+			</div>
+		</div>
+	</div>
+}

@@ -1,0 +1,5 @@
+/* Disable animation on download progress bar to prevent visual lag */
+.progress-no-animation .progress-bar {
+	animation: none !important;
+	transition: width 0s !important;
+}

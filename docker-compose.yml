@@ -8,9 +8,19 @@ services:
             - /app/node_modules
             - cargo-registry:/root/.cargo/registry
             - cargo-git:/root/.cargo/git
-            - cargo-target:/app/src-tauri/target
+
+    build-windows:
+        build:
+            context: .
+            dockerfile: Dockerfile.windows
+        volumes:
+            - .:/app
+            - /app/node_modules
+            - cargo-registry:/root/.cargo/registry
+            - cargo-git:/root/.cargo/git
+            - xwin-cache:/root/.cache/cargo-xwin
 
 volumes:
     cargo-registry:
     cargo-git:
-    cargo-target:
+    xwin-cache:

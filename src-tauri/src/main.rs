@@ -1,6 +1,7 @@
 // Prevents a console window from appearing on Windows in release builds
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-fn main() {
-    knm_remake_launcher_lib::run();
+fn main()
+{
+	knights_launcher_lib::run();
 }

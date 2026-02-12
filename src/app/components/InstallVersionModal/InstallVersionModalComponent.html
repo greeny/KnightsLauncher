@@ -1,0 +1,156 @@
+@if (isOpen) {
+	<div class="modal-backdrop fade show"></div>
+	<div class="modal show d-block" tabindex="-1">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+
+				<div class="modal-header">
+					<h5 class="modal-title">Install New Version</h5>
+					<button type="button" class="btn-close"
+						(click)="close()"
+						[disabled]="state === ModalState.Installing"
+					></button>
+				</div>
+
+				<div class="modal-body">
+					@if (state === ModalState.Loading) {
+						<p class="text-secondary">Loading available versions...</p>
+					}
+
+					@if (state === ModalState.Error) {
+						<div class="alert alert-danger mb-0">{{errorMessage}}</div>
+					}
+
+					@if (state === ModalState.Info) {
+						<div class="alert alert-info mb-0">
+							<p class="mb-2">{{errorMessage}}</p>
+							@if (linuxInstallerPath) {
+								<button type="button" class="btn btn-sm btn-outline-info"
+									(click)="openLinuxInstallerFolder()"
+								>Open Folder</button>
+							}
+						</div>
+					}
+
+					@if (state === ModalState.Ready || state === ModalState.Installing) {
+						<div class="mb-3">
+							<label class="form-label">Version</label>
+							<select class="form-select"
+								[(ngModel)]="selectedVersion"
+								(ngModelChange)="onVersionSelected()"
+								[disabled]="state === ModalState.Installing"
+							>
+								<option [ngValue]="null" disabled>Select a version…</option>
+								@for (v of availableVersions; track v.name) {
+									<option [ngValue]="v">{{v.name}}@if (isInstalled(v)) { (Installed)}</option>
+								}
+							</select>
+						</div>
+
+						<div class="mb-3">
+							<label class="form-label">Display name</label>
+							<input type="text" class="form-control"
+								[(ngModel)]="versionName"
+								placeholder="Name for this installation"
+								[disabled]="state === ModalState.Installing"
+							/>
+						</div>
+
+						@if (isWindows) {
+							<div class="mb-3">
+								<label class="form-label">Install path</label>
+								<div class="input-group">
+									<input type="text" class="form-control"
+										[(ngModel)]="installPath"
+										placeholder="Select or type a path…"
+										[disabled]="state === ModalState.Installing"
+									/>
+									<button class="btn btn-outline-secondary" type="button"
+										(click)="browsePath()"
+										[disabled]="state === ModalState.Installing"
+									>Browse…</button>
+								</div>
+							</div>
+						}
+					}
+
+					@if (state === ModalState.Installing) {
+						@if (downloadProgress) {
+							<div>
+								@if (downloadProgress.stage === 'downloading') {
+									<div class="mb-2">
+										<small class="text-secondary">Downloading {{selectedVersion?.name}}…</small>
+										<div class="progress mt-2 progress-no-animation" style="height: 20px;">
+											<div class="progress-bar progress-bar-striped"
+												role="progressbar"
+												[style.width.%]="downloadProgress.percentComplete"
+												[attr.aria-valuenow]="downloadProgress.percentComplete"
+												aria-valuemin="0"
+												aria-valuemax="100"
+											>
+												{{downloadProgress.percentComplete}}%
+											</div>
+										</div>
+										<small class="text-secondary d-block mt-1">
+											{{(downloadProgress.bytesDownloaded / 1024 / 1024).toFixed(1)}} MiB / {{(downloadProgress.totalBytes / 1024 / 1024).toFixed(1)}} MiB
+										</small>
+									</div>
+								} @else if (downloadProgress.stage === 'verifying') {
+									<div class="d-flex align-items-center gap-2 text-secondary">
+										<div class="spinner-border spinner-border-sm" role="status"></div>
+										<span>Verifying checksum…</span>
+									</div>
+									<div class="progress mt-3" style="height: 20px;">
+										<div class="progress-bar progress-bar-striped progress-bar-animated"
+											role="progressbar"
+											style="width: 100%"
+										></div>
+									</div>
+								} @else if (downloadProgress.stage === 'writing') {
+									<div class="d-flex align-items-center gap-2 text-secondary">
+										<div class="spinner-border spinner-border-sm" role="status"></div>
+										<span>Writing file to disk…</span>
+									</div>
+									<div class="progress mt-3" style="height: 20px;">
+										<div class="progress-bar progress-bar-striped progress-bar-animated"
+											role="progressbar"
+											style="width: 100%"
+										></div>
+									</div>
+								} @else if (downloadProgress.stage === 'installing') {
+									<div class="d-flex align-items-center gap-2 text-secondary">
+										<div class="spinner-border spinner-border-sm" role="status"></div>
+										<span>Installing {{selectedVersion?.name}}…</span>
+									</div>
+									<div class="progress mt-3" style="height: 20px;">
+										<div class="progress-bar progress-bar-striped progress-bar-animated"
+											role="progressbar"
+											style="width: 100%"
+										></div>
+									</div>
+								}
+							</div>
+						} @else {
+							<div class="d-flex align-items-center gap-2 text-secondary">
+								<div class="spinner-border spinner-border-sm" role="status"></div>
+								<span>Starting…</span>
+							</div>
+						}
+					}
+				</div>
+
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary"
+						(click)="close()"
+						[disabled]="state === ModalState.Installing"
+					>Cancel</button>
+					<button type="button" class="btn btn-primary"
+						(click)="install()"
+						[disabled]="!canInstall"
+					>Install</button>
+				</div>
+
+			</div>
+		</div>
+	</div>
+}

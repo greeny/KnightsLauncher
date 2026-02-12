@@ -1,4 +1,4 @@
-# Build environment for KnM Remake Launcher (Linux target)
+# Build environment for Knight's Launcher (Linux target)
 # Matches Ubuntu 22.04 which has the webkit2gtk 4.1 packages Tauri 2 requires
 FROM ubuntu:22.04
 
@@ -8,10 +8,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
+    file \
+    patchelf \
     build-essential \
     pkg-config \
+    libfuse2 \
     libssl-dev \
     libgtk-3-dev \
+    desktop-file-utils \
     libwebkit2gtk-4.1-dev \
     libayatana-appindicator3-dev \
     librsvg2-dev \
