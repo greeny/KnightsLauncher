@@ -28,7 +28,8 @@
 		"active": true,
 		"targets": "all",
 		"icon": [
-			"icons/app-icon.png"
+			"icons/app-icon.png",
+			"icons/icon.ico"
 		]
 	}
 }
