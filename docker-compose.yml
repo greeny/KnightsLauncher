@@ -12,7 +12,7 @@ services:
     build-windows:
         build:
             context: .
-            dockerfile: Dockerfile.windows
+            dockerfile: windows.Dockerfile
         volumes:
             - .:/app
             - /app/node_modules

@@ -75,13 +75,13 @@
 							@if (showAdvanced) {
 								<div class="mt-3">
 									<div class="mb-3">
-										<label class="form-label">Launch command</label>
+										<label class="form-label">Version</label>
 										<input type="text" class="form-control"
-											[(ngModel)]="launchArgs"
-											placeholder="(optional, use %exe% for executable name)"
+											[(ngModel)]="detectedVersion"
+											placeholder="e.g. r6720"
 											[disabled]="state === ModalState.Saving"
 										/>
-										<small class="text-secondary d-block mt-1">Leave empty to use default launcher. Use %exe% as placeholder.</small>
+										<small class="text-secondary d-block mt-1">Auto-detected from folder or installer file. Can be edited manually.</small>
 									</div>
 
 									<div class="mb-3">
@@ -100,13 +100,13 @@
 									</div>
 
 									<div class="mb-3">
-										<label class="form-label">Version</label>
+										<label class="form-label">Launch command</label>
 										<input type="text" class="form-control"
-											[(ngModel)]="detectedVersion"
-											placeholder="e.g. r6720"
+											[(ngModel)]="launchArgs"
+											placeholder="(optional, use %exe% for executable name)"
 											[disabled]="state === ModalState.Saving"
 										/>
-										<small class="text-secondary d-block mt-1">Auto-detected from folder or installer file. Can be edited manually.</small>
+										<small class="text-secondary d-block mt-1">Leave empty to use default launcher. Use %exe% as placeholder.</small>
 									</div>
 								</div>
 							}
