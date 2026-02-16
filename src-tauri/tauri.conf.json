@@ -29,7 +29,7 @@
 		"targets": "all",
 		"windows": {
 			"nsis": false
-		}
+		},
 		"icon": [
 			"icons/app-icon.png",
 			"icons/icon.ico"
