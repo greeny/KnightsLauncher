@@ -76,6 +76,14 @@ jobs:
                 with:
                     workspaces: "./src-tauri -> target"
 
+            -   name: Remove preinstalled NSIS (fix Tauri NSIS macro crash)
+                shell: powershell
+                run: |
+                  if (Get-Command makensis.exe -ErrorAction SilentlyContinue) {
+                    Write-Host "Removing existing makensis from PATH"
+                    Remove-Item "C:\ProgramData\chocolatey\bin\makensis.exe" -Force
+                  }
+
             -   name: Install npm dependencies
                 run: npm ci
 
