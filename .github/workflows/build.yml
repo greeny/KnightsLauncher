@@ -76,9 +76,6 @@ jobs:
                 with:
                     workspaces: "./src-tauri -> target"
 
-            -   name: Install NSIS
-                run: choco install nsis --version=3.09 -y
-
             -   name: Install npm dependencies
                 run: npm ci
 
