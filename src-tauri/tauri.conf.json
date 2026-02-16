@@ -28,7 +28,7 @@
 		"active": true,
 		"targets": "all",
 		"windows": {
-			"nsis": false
+			"nsis": null
 		},
 		"icon": [
 			"icons/app-icon.png",
