@@ -1,5 +1,7 @@
 import {Injectable} from "@angular/core";
 import {Command} from "@tauri-apps/plugin-shell";
+import {writeTextFile, remove} from "@tauri-apps/plugin-fs";
+import {appDataDir, join} from "@tauri-apps/api/path";
 
 import {DebugService} from "@src/app/debug/DebugService";
 import {PlatformService} from "@src/app/platform/PlatformService";
@@ -67,11 +69,23 @@ export class InstallationService
 			.replaceAll('%dir%', installDirectory);
 
 		const isWindows = this._platformService.isWindows();
-		const command = isWindows
-			? Command.create('cmd', ['/c', fullCommand])
-			: Command.create('sh', ['-c', fullCommand]);
+		let command;
+		let batchPath: string | null = null;
 
-		this._debugService.log('install', `Running: ${isWindows ? 'cmd /c' : 'sh -c'} "${fullCommand}"`);
+		if (isWindows) {
+			// The command cannot be passed to `cmd /c` as an argument: the
+			// process API escapes embedded quotes as \" which cmd does not
+			// understand. A batch file is parsed by cmd natively instead.
+			// chcp 65001 makes cmd read the UTF-8 file correctly even when
+			// paths contain non-ASCII characters.
+			batchPath = await join(await appDataDir(), 'knights-launcher-install.bat');
+			await writeTextFile(batchPath, `@echo off\r\n@chcp 65001 >nul\r\n${fullCommand}\r\n`);
+			command = Command.create('cmd', ['/c', batchPath]);
+		} else {
+			command = Command.create('sh', ['-c', fullCommand]);
+		}
+
+		this._debugService.log('install', `Running: ${isWindows ? `cmd /c ${batchPath} containing` : 'sh -c'} "${fullCommand}"`);
 
 		let output;
 		try {
@@ -80,6 +94,14 @@ export class InstallationService
 			const message = error instanceof Error ? error.message : String(error);
 			this._debugService.log('install', `Failed to run installer: ${message}`);
 			throw new Error(`Failed to run installer: ${message}`);
+		} finally {
+			if (batchPath !== null) {
+				try {
+					await remove(batchPath);
+				} catch {
+					// Ignore cleanup errors
+				}
+			}
 		}
 
 		this._debugService.log('install', `Installer exited with code ${output.code}`);

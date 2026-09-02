@@ -1,6 +1,7 @@
 import {Injectable} from "@angular/core";
 import {Command} from "@tauri-apps/plugin-shell";
-import {exists} from "@tauri-apps/plugin-fs";
+import {exists, mkdir, remove, writeTextFile} from "@tauri-apps/plugin-fs";
+import {appDataDir, join} from "@tauri-apps/api/path";
 
 import {DebugService} from "@src/app/debug/DebugService";
 import {PlatformService} from "@src/app/platform/PlatformService";
@@ -43,7 +44,8 @@ export class LaunchService
 	 * game folder, because the shell resolves the executable name relative
 	 * to that folder (a direct spawn on Windows would only search PATH and
 	 * the launcher's own directory, not the cwd):
-	 *   - Windows: `cmd /c "<command>"`
+	 *   - Windows: `cmd /c <batch file containing the command>` — cmd cannot
+	 *     receive the command as an argument, see writeLaunchBatch
 	 *   - Linux/macOS: `sh -c "<command>"`
 	 *
 	 * If launchArgs is set, %exe% inside it is replaced with the executable
@@ -79,11 +81,22 @@ export class LaunchService
 			fullCommand = 'wine ' + exeBasename;
 		}
 
-		const shellName = isWindows ? 'cmd' : 'sh';
-		const shellFlag = isWindows ? '/c' : '-c';
-		const command = Command.create(shellName, [shellFlag, fullCommand], {cwd: folderPath});
+		let command;
+		let batchPath: string | null = null;
 
-		this._debugService.log('launch', `Running: ${shellName} ${shellFlag} "${fullCommand}" (cwd: ${folderPath})`);
+		if (isWindows) {
+			// The command cannot be passed to `cmd /c` as an argument: the
+			// process API escapes embedded quotes as \" which cmd does not
+			// understand. A batch file is parsed by cmd natively instead. It
+			// gets a unique name and is removed when the process closes,
+			// because cmd keeps reading the file while the game runs.
+			batchPath = await this.writeLaunchBatch(fullCommand);
+			command = Command.create('cmd', ['/c', batchPath], {cwd: folderPath});
+			this._debugService.log('launch', `Running: cmd /c ${batchPath} containing "${fullCommand}" (cwd: ${folderPath})`);
+		} else {
+			command = Command.create('sh', ['-c', fullCommand], {cwd: folderPath});
+			this._debugService.log('launch', `Running: sh -c "${fullCommand}" (cwd: ${folderPath})`);
+		}
 
 		const outputLines: string[] = [];
 
@@ -99,10 +112,12 @@ export class LaunchService
 		const exitPromise = new Promise<LaunchExit>((resolve) => {
 			command.on('error', (error) => {
 				this._debugService.log('launch', `Process error: ${String(error)}`);
+				this.tryRemoveBatch(batchPath);
 				setTimeout(() => resolve({type: 'error', message: String(error)}), OUTPUT_FLUSH_GRACE_MS);
 			});
 			command.on('close', (data) => {
 				this._debugService.log('launch', `Process exited with code ${data.code}${data.signal !== null ? ` (signal ${data.signal})` : ''}`);
+				this.tryRemoveBatch(batchPath);
 				setTimeout(() => resolve({type: 'exited', code: data.code}), OUTPUT_FLUSH_GRACE_MS);
 			});
 		});
@@ -113,6 +128,7 @@ export class LaunchService
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			this._debugService.log('launch', `Spawn failed: ${message}`);
+			await this.tryRemoveBatch(batchPath);
 			throw new Error(`Failed to launch game: ${message}`);
 		}
 
@@ -163,6 +179,37 @@ export class LaunchService
 		if (!executableExists) {
 			this._debugService.log('launch', `Game executable missing: ${executablePath}`);
 			throw new Error(`Game executable not found: ${executablePath}\nThe folder exists but the executable is missing. Edit this version and fix its executable path.`);
+		}
+	}
+
+	/**
+	 * Writes the launch command to a uniquely named batch file in the app
+	 * data directory. chcp 65001 makes cmd read the UTF-8 file correctly
+	 * even when paths contain non-ASCII characters.
+	 */
+	private async writeLaunchBatch(fullCommand: string): Promise<string>
+	{
+		const dataDir = await appDataDir();
+		try {
+			await mkdir(dataDir, {recursive: true});
+		} catch {
+			// Already exists
+		}
+
+		const batchPath = await join(dataDir, `knights-launcher-launch-${Date.now()}.bat`);
+		await writeTextFile(batchPath, `@echo off\r\n@chcp 65001 >nul\r\n${fullCommand}\r\n`);
+		return batchPath;
+	}
+
+	/** Removes a launch batch file, ignoring cleanup errors. */
+	private async tryRemoveBatch(batchPath: string | null): Promise<void>
+	{
+		if (batchPath !== null) {
+			try {
+				await remove(batchPath);
+			} catch {
+				// Ignore cleanup errors
+			}
 		}
 	}
 

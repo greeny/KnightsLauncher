@@ -1,8 +1,8 @@
-import {Injectable} from "@angular/core";
+import {Injectable, NgZone} from "@angular/core";
 import {firstValueFrom} from "rxjs";
 import {download} from "@tauri-apps/plugin-upload";
 import {invoke} from "@tauri-apps/api/core";
-import {remove} from "@tauri-apps/plugin-fs";
+import {mkdir, remove} from "@tauri-apps/plugin-fs";
 import {appDataDir, join} from "@tauri-apps/api/path";
 
 import {GameVersionService} from "@src/app/api/GameVersionService";
@@ -30,7 +30,8 @@ export class DownloadService
 		private _apiService: ApiService,
 		private _stateService: StateService,
 		private _installationService: InstallationService,
-		private _debugService: DebugService
+		private _debugService: DebugService,
+		private _ngZone: NgZone
 	) {}
 
 	/**
@@ -66,8 +67,17 @@ export class DownloadService
 			throw new Error(this.installerErrorMessage(result));
 		}
 
+		const dataDir = await appDataDir();
+		try {
+			// The download plugin creates the file but not the directory,
+			// which does not exist yet on a fresh installation.
+			await mkdir(dataDir, {recursive: true});
+		} catch {
+			// Already exists, or browser dev mode
+		}
+
 		const installerFilename = `KaM_Remake_install_${version.name}.exe`;
-		const installerPath = await join(await appDataDir(), installerFilename);
+		const installerPath = await join(dataDir, installerFilename);
 
 		await this.downloadToFile(installer, installerPath, onProgress);
 
@@ -112,18 +122,27 @@ export class DownloadService
 	{
 		this._debugService.log('download', `Downloading ${installer.url} to ${installerPath}`);
 
+		// Progress callbacks arrive from Tauri outside the Angular zone, so
+		// change detection must be re-entered explicitly — and throttled,
+		// because the events fire for every received chunk.
+		let lastEmit = 0;
+
 		try {
 			await download(installer.url, installerPath, (event) =>
 			{
-				if (onProgress) {
-					const totalBytes = event.total > 0 ? event.total : installer.size;
-					onProgress({
-						stage: 'downloading',
-						bytesDownloaded: event.progressTotal,
-						totalBytes,
-						percentComplete: totalBytes > 0 ? Math.round((event.progressTotal / totalBytes) * 100) : 0,
-					});
+				const now = Date.now();
+				if (!onProgress || now - lastEmit < 100) {
+					return;
 				}
+				lastEmit = now;
+
+				const totalBytes = event.total > 0 ? event.total : installer.size;
+				this._ngZone.run(() => onProgress({
+					stage: 'downloading',
+					bytesDownloaded: event.progressTotal,
+					totalBytes,
+					percentComplete: totalBytes > 0 ? Math.round((event.progressTotal / totalBytes) * 100) : 0,
+				}));
 			});
 		} catch (error) {
 			this._debugService.log('download', `Download failed: ${this.errorMessage(error)}`);
