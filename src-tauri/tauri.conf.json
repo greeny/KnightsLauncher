@@ -17,7 +17,8 @@
 				"height": 700,
 				"minWidth": 800,
 				"minHeight": 560,
-				"resizable": true
+				"resizable": true,
+				"backgroundColor": "#212529"
 			}
 		],
 		"security": {
@@ -26,7 +27,8 @@
 	},
 	"bundle": {
 		"active": true,
-		"targets": "all",
+		"targets": ["appimage", "nsis"],
+		"createUpdaterArtifacts": true,
 		"windows": {
 			"nsis": null
 		},
@@ -34,5 +36,16 @@
 			"icons/app-icon.png",
 			"icons/icon.ico"
 		]
+	},
+	"plugins": {
+		"updater": {
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEQ4RkE1MEE2NUE4QTRCRjEKUldUeFM0cGFwbEQ2Mk9mazlwZ1NucjFJeTRwM3FxOW1YblJxOXJRNHhjczFGdCtKSG9mTEJGdE4K",
+			"endpoints": [
+				"https://www.knights-tavern.com/installers/launcher/latest.json"
+			],
+			"windows": {
+				"installMode": "passive"
+			}
+		}
 	}
 }

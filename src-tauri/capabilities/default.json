@@ -39,15 +39,9 @@
                 }
             ]
         },
-        {
-            "identifier": "http:default",
-            "allow": [
-                {"url": "http://knights-tavern.local/*"},
-                {"url": "https://knights-tavern.local/*"},
-                {"url": "https://knights-tavern.com/*"},
-                {"url": "https://www.knights-tavern.com/*"}
-            ]
-        },
+        "updater:default",
+        "process:allow-restart",
+        "upload:default",
         "fs:default",
         "fs:allow-appdata-write-recursive",
         "fs:allow-appconfig-write-recursive",

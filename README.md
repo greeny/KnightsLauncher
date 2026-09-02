@@ -73,7 +73,6 @@ npm run tauri build
 ```
 
 Output:
-- `src-tauri/target/release/bundle/deb/*.deb`
 - `src-tauri/target/release/bundle/appimage/*.AppImage`
 
 ### Windows (native, run on Windows)
@@ -83,7 +82,6 @@ npm run tauri build
 ```
 
 Output:
-- `src-tauri/target/release/bundle/msi/*.msi`
 - `src-tauri/target/release/bundle/nsis/*.exe`
 
 ### Via Docker (Linux build only)

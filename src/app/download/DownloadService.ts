@@ -1,19 +1,22 @@
 import {Injectable} from "@angular/core";
 import {firstValueFrom} from "rxjs";
-import {fetch as tauriFetch} from "@tauri-apps/plugin-http";
-import {writeFile, remove} from "@tauri-apps/plugin-fs";
+import {download} from "@tauri-apps/plugin-upload";
+import {invoke} from "@tauri-apps/api/core";
+import {remove} from "@tauri-apps/plugin-fs";
 import {appDataDir, join} from "@tauri-apps/api/path";
 
 import {GameVersionService} from "@src/app/api/GameVersionService";
 import {ApiService} from "@src/app/api/ApiService";
 import {StateService} from "@src/app/storage/StateService";
 import {InstallationService} from "@src/app/installation/InstallationService";
+import {DebugService} from "@src/app/debug/DebugService";
 import {ApiResult} from "@src/app/api/model/ApiResult";
 import {GameVersion} from "@src/app/api/model/GameVersion";
+import {VersionInstaller} from "@src/app/api/model/VersionInstaller";
 
 export interface DownloadProgress
 {
-	stage: 'downloading' | 'verifying' | 'writing' | 'installing';
+	stage: 'downloading' | 'verifying' | 'installing';
 	bytesDownloaded: number;
 	totalBytes: number;
 	percentComplete: number;
@@ -26,13 +29,19 @@ export class DownloadService
 		private _gameVersionService: GameVersionService,
 		private _apiService: ApiService,
 		private _stateService: StateService,
-		private _installationService: InstallationService
+		private _installationService: InstallationService,
+		private _debugService: DebugService
 	) {}
 
 	/**
 	 * Downloads a game version installer, verifies checksum, runs the
 	 * installer (via installCommand, or the platform default when empty),
 	 * records the version in state and cleans up the installer file.
+	 *
+	 * The download streams directly to disk (upload plugin) and the checksum
+	 * is computed natively (sha256_file command), so installers of any size
+	 * never pass through webview memory — buffering them there crashes the
+	 * renderer process on files this large.
 	 *
 	 * A failed installation leaves nothing behind: the version is not
 	 * recorded and the downloaded installer is removed.
@@ -57,31 +66,23 @@ export class DownloadService
 			throw new Error(this.installerErrorMessage(result));
 		}
 
-		const installerData = await this.downloadWithProgress(installer.url, onProgress);
+		const installerFilename = `KaM_Remake_install_${version.name}.exe`;
+		const installerPath = await join(await appDataDir(), installerFilename);
+
+		await this.downloadToFile(installer, installerPath, onProgress);
 
 		this.emitProgress(onProgress, 'verifying');
-		await this.yieldToUI();
 
 		if (installer.checksum) {
-			await this.verifyChecksum(installerData, installer.checksum);
-		}
-
-		// Write installer to appDataDir (within Tauri's allowed FS scope)
-		const installerFilename = `KaM_Remake_install_${version.name}.exe`;
-		const tempDir = await appDataDir();
-		const installerPath = await join(tempDir, installerFilename);
-
-		this.emitProgress(onProgress, 'writing');
-		await this.yieldToUI();
-
-		try {
-			await writeFile(installerPath, installerData);
-		} catch (error) {
-			throw new Error(`Failed to write installer to disk: ${this.errorMessage(error)}`);
+			try {
+				await this.verifyChecksum(installerPath, installer.checksum);
+			} catch (error) {
+				await this.tryRemove(installerPath);
+				throw error;
+			}
 		}
 
 		this.emitProgress(onProgress, 'installing');
-		await this.yieldToUI();
 
 		try {
 			await this._installationService.runInstaller(installerPath, installPath, installCommand);
@@ -102,87 +103,48 @@ export class DownloadService
 		});
 	}
 
-	/** Removes a temporary file, ignoring cleanup errors. */
-	private async tryRemove(path: string): Promise<void>
-	{
-		try {
-			await remove(path);
-		} catch {
-			// Ignore cleanup errors
-		}
-	}
-
-	private async downloadWithProgress(
-		url: string,
+	/** Streams the installer to disk, reporting download progress. */
+	private async downloadToFile(
+		installer: VersionInstaller,
+		installerPath: string,
 		onProgress?: (progress: DownloadProgress) => void
-	): Promise<Uint8Array>
+	): Promise<void>
 	{
-		let response: Response;
+		this._debugService.log('download', `Downloading ${installer.url} to ${installerPath}`);
+
 		try {
-			response = await tauriFetch(url);
+			await download(installer.url, installerPath, (event) =>
+			{
+				if (onProgress) {
+					const totalBytes = event.total > 0 ? event.total : installer.size;
+					onProgress({
+						stage: 'downloading',
+						bytesDownloaded: event.progressTotal,
+						totalBytes,
+						percentComplete: totalBytes > 0 ? Math.round((event.progressTotal / totalBytes) * 100) : 0,
+					});
+				}
+			});
 		} catch (error) {
+			this._debugService.log('download', `Download failed: ${this.errorMessage(error)}`);
+			await this.tryRemove(installerPath);
 			throw new Error(`Download failed: ${this.errorMessage(error)}`);
 		}
 
-		if (!response.ok) {
-			throw new Error(`Download failed: server returned HTTP ${response.status}.`);
-		}
-
-		const totalBytes = parseInt(response.headers.get('content-length') || '0', 10);
-		const reader = response.body?.getReader();
-
-		if (!reader) {
-			throw new Error('Failed to read download stream.');
-		}
-
-		const chunks: Uint8Array[] = [];
-		let bytesDownloaded = 0;
-
-		try {
-			while (true) {
-				const {done, value} = await reader.read();
-				if (done) {
-					break;
-				}
-
-				chunks.push(value);
-				bytesDownloaded += value.length;
-
-				if (onProgress) {
-					onProgress({
-						stage: 'downloading',
-						bytesDownloaded,
-						totalBytes,
-						percentComplete: totalBytes > 0 ? Math.round((bytesDownloaded / totalBytes) * 100) : 0
-					});
-				}
-			}
-		} catch (error) {
-			throw new Error(`Download interrupted: ${this.errorMessage(error)}`);
-		}
-
-		const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-		const result = new Uint8Array(totalLength);
-		let offset = 0;
-
-		for (const chunk of chunks) {
-			result.set(chunk, offset);
-			offset += chunk.length;
-		}
-
-		return result;
+		this._debugService.log('download', 'Download finished');
 	}
 
-	private async verifyChecksum(data: Uint8Array, expectedChecksum: string): Promise<void>
+	/** Verifies the file's SHA-256 (computed natively) against the expected hex checksum. */
+	private async verifyChecksum(installerPath: string, expectedChecksum: string): Promise<void>
 	{
 		let calculatedChecksum: string;
 		try {
-			const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-			const hashArray = Array.from(new Uint8Array(hashBuffer));
-			calculatedChecksum = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+			calculatedChecksum = await invoke<string>('sha256_file', {path: installerPath});
 		} catch (error) {
 			throw new Error(`Checksum calculation failed: ${this.errorMessage(error)}`);
 		}
+
+		this._debugService.log('download', `Checksum: expected ${expectedChecksum}, got ${calculatedChecksum}`);
 
 		if (calculatedChecksum.toLowerCase() !== expectedChecksum.toLowerCase()) {
 			throw new Error(
@@ -205,16 +167,21 @@ export class DownloadService
 		return `Could not retrieve download info. ${this._apiService.failureMessage(result)}`;
 	}
 
+	/** Removes a temporary file, ignoring cleanup errors. */
+	private async tryRemove(path: string): Promise<void>
+	{
+		try {
+			await remove(path);
+		} catch {
+			// Ignore cleanup errors
+		}
+	}
+
 	private emitProgress(onProgress: ((progress: DownloadProgress) => void) | undefined, stage: DownloadProgress['stage']): void
 	{
 		if (onProgress) {
 			onProgress({stage, bytesDownloaded: 0, totalBytes: 0, percentComplete: 0});
 		}
-	}
-
-	private yieldToUI(): Promise<void>
-	{
-		return new Promise(resolve => setTimeout(resolve, 0));
 	}
 
 	private errorMessage(error: unknown): string

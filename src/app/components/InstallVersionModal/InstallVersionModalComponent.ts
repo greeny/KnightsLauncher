@@ -8,7 +8,7 @@ import {GameVersionService} from "@src/app/api/GameVersionService";
 import {ApiService} from "@src/app/api/ApiService";
 import {ConfigService} from "@src/app/storage/ConfigService";
 import {StateService} from "@src/app/storage/StateService";
-import {DownloadService} from "@src/app/download/DownloadService";
+import {DownloadService, DownloadProgress} from "@src/app/download/DownloadService";
 import {InstallationService} from "@src/app/installation/InstallationService";
 import {GameVersion} from "@src/app/api/model/GameVersion";
 
@@ -42,7 +42,7 @@ export class InstallVersionModalComponent
 	public installCommand: string = '';
 	public showAdvanced: boolean = false;
 	public errorMessage: string = '';
-	public downloadProgress: {stage: 'downloading' | 'writing' | 'verifying' | 'installing'; bytesDownloaded: number; totalBytes: number; percentComplete: number} | null = null;
+	public downloadProgress: DownloadProgress | null = null;
 
 	private _installedVersionNames: Set<string> = new Set();
 

@@ -5,6 +5,8 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>Knight's Launcher</title>
 	<base href="/" />
+	<!-- Match Bootstrap's dark --bs-body-bg before any stylesheet loads, so the window never flashes white. -->
+	<style>html, body {background-color: #212529;}</style>
 </head>
 <body>
 	<app-root></app-root>
