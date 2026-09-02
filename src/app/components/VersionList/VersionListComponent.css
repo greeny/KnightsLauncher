@@ -1,0 +1,24 @@
+.launch-error {
+	white-space: pre-line;
+	word-break: break-word;
+}
+
+/* Every column shrinks to its content; the path column takes the rest. */
+.version-table th,
+.version-table td {
+	white-space: nowrap;
+	width: 1%;
+}
+
+/* max-width: 0 lets the cell truncate instead of growing with its content. */
+.version-table .path-column {
+	width: 100%;
+	max-width: 0;
+}
+
+/* Block display truncates cleanly and avoids the inline-block baseline offset. */
+.version-table .path-column code {
+	display: block;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}

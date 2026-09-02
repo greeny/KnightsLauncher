@@ -3,7 +3,6 @@ import {firstValueFrom} from "rxjs";
 import {fetch as tauriFetch} from "@tauri-apps/plugin-http";
 import {writeFile, remove} from "@tauri-apps/plugin-fs";
 import {appDataDir, join} from "@tauri-apps/api/path";
-import {family} from "@tauri-apps/plugin-os";
 
 import {GameVersionService} from "@src/app/api/GameVersionService";
 import {StateService} from "@src/app/storage/StateService";
@@ -18,11 +17,6 @@ export interface DownloadProgress
 	percentComplete: number;
 }
 
-export interface InstallResult
-{
-	manualInstallPath: string | null;
-}
-
 @Injectable({providedIn: 'root'})
 export class DownloadService
 {
@@ -33,10 +27,12 @@ export class DownloadService
 	) {}
 
 	/**
-	 * Downloads a game version installer, verifies checksum, and installs it.
+	 * Downloads a game version installer, verifies checksum, runs the
+	 * installer (via installCommand, or the platform default when empty),
+	 * records the version in state and cleans up the installer file.
 	 *
-	 * On Windows: Downloads, verifies, runs installer, records in state, cleans up file.
-	 * On other OSes: Downloads file and returns path for manual installation.
+	 * A failed installation leaves nothing behind: the version is not
+	 * recorded and the downloaded installer is removed.
 	 *
 	 * Emits progress updates during download.
 	 * Throws descriptive Error on any failure.
@@ -45,24 +41,26 @@ export class DownloadService
 		version: GameVersion,
 		installPath: string,
 		name: string,
+		installCommand: string,
 		onProgress?: (progress: DownloadProgress) => void
-	): Promise<InstallResult>
+	): Promise<void>
 	{
-		const downloadInfo = await firstValueFrom(
-			this._gameVersionService.getVersionDownload(version.name)
+		const result = await firstValueFrom(
+			this._gameVersionService.getVersionInstaller(version.name)
 		);
+		const installer = result.data?.installer;
 
-		if (!downloadInfo) {
-			throw new Error('Could not retrieve download info. Check your internet connection.');
+		if (!installer) {
+			throw new Error(this.installerErrorMessage(result.errors));
 		}
 
-		const installerData = await this.downloadWithProgress(downloadInfo.url, onProgress);
+		const installerData = await this.downloadWithProgress(installer.url, onProgress);
 
 		this.emitProgress(onProgress, 'verifying');
 		await this.yieldToUI();
 
-		if (downloadInfo.checksum) {
-			await this.verifyChecksum(installerData, downloadInfo.checksum);
+		if (installer.checksum) {
+			await this.verifyChecksum(installerData, installer.checksum);
 		}
 
 		// Write installer to appDataDir (within Tauri's allowed FS scope)
@@ -79,24 +77,17 @@ export class DownloadService
 			throw new Error(`Failed to write installer to disk: ${this.errorMessage(error)}`);
 		}
 
-		if (family() !== 'windows') {
-			return {manualInstallPath: installerPath};
-		}
-
 		this.emitProgress(onProgress, 'installing');
 		await this.yieldToUI();
 
 		try {
-			await this._installationService.runInstaller(installerPath, installPath);
+			await this._installationService.runInstaller(installerPath, installPath, installCommand);
 		} catch (error) {
+			await this.tryRemove(installerPath);
 			throw new Error(`Installation failed: ${this.errorMessage(error)}`);
 		}
 
-		try {
-			await remove(installerPath);
-		} catch {
-			// Ignore cleanup errors
-		}
+		await this.tryRemove(installerPath);
 
 		await this._stateService.addInstalledVersion({
 			name: name,
@@ -106,8 +97,16 @@ export class DownloadService
 			order: 0,
 			launchArgs: '',
 		});
+	}
 
-		return {manualInstallPath: null};
+	/** Removes a temporary file, ignoring cleanup errors. */
+	private async tryRemove(path: string): Promise<void>
+	{
+		try {
+			await remove(path);
+		} catch {
+			// Ignore cleanup errors
+		}
 	}
 
 	private async downloadWithProgress(
@@ -187,6 +186,20 @@ export class DownloadService
 				`Checksum verification failed. Expected ${expectedChecksum}, got ${calculatedChecksum}.`
 			);
 		}
+	}
+
+	/** Maps the API's error keys (see launcher.md) to a user-facing message. */
+	private installerErrorMessage(errors: string[]): string
+	{
+		if (errors.includes('installerNotAvailable')) {
+			return 'The installer for this version is not available yet. Please try again later.';
+		}
+
+		if (errors.includes('versionNotFound')) {
+			return 'This version no longer exists on the server.';
+		}
+
+		return 'Could not retrieve download info. Check your internet connection.';
 	}
 
 	private emitProgress(onProgress: ((progress: DownloadProgress) => void) | undefined, stage: DownloadProgress['stage']): void

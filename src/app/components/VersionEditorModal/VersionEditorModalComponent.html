@@ -45,7 +45,7 @@
 									@if (isDetecting) {
 										<span class="spinner-border spinner-border-sm me-1" role="status"></span>Detecting…
 									} @else {
-										Browse…
+										<i class="fa-solid fa-folder-open me-1"></i>Browse…
 									}
 								</button>
 							</div>
@@ -66,9 +66,9 @@
 								(click)="toggleAdvanced()"
 							>
 								@if (showAdvanced) {
-									▼ Hide Advanced
+									<i class="fa-solid fa-chevron-down me-1"></i>Hide Advanced
 								} @else {
-									▶ Show Advanced
+									<i class="fa-solid fa-chevron-right me-1"></i>Show Advanced
 								}
 							</button>
 
@@ -95,7 +95,7 @@
 											<button class="btn btn-outline-secondary" type="button"
 												(click)="browseExecutablePath()"
 												[disabled]="state === ModalState.Saving"
-											>Browse…</button>
+											><i class="fa-solid fa-folder-open me-1"></i>Browse…</button>
 										</div>
 									</div>
 
@@ -118,7 +118,7 @@
 					@if (isConfirmingDelete) {
 						<button type="button" class="btn btn-secondary"
 							(click)="cancelDelete()"
-						>Keep It</button>
+						><i class="fa-solid fa-xmark me-1"></i>Keep It</button>
 						<button type="button" class="btn btn-danger"
 							(click)="confirmDelete()"
 							[disabled]="state === ModalState.Saving"
@@ -126,7 +126,7 @@
 							@if (state === ModalState.Saving) {
 								<span class="spinner-border spinner-border-sm me-1" role="status"></span>Removing…
 							} @else {
-								Delete Permanently
+								<i class="fa-solid fa-trash-can me-1"></i>Delete Permanently
 							}
 						</button>
 					} @else {
@@ -135,13 +135,13 @@
 								<button type="button" class="btn btn-danger"
 									(click)="delete()"
 									[disabled]="state !== ModalState.Ready"
-								>Delete</button>
+								><i class="fa-solid fa-trash-can me-1"></i>Delete</button>
 							}
 						</div>
 						<button type="button" class="btn btn-secondary"
 							(click)="close()"
 							[disabled]="state === ModalState.Saving"
-						>Cancel</button>
+						><i class="fa-solid fa-xmark me-1"></i>Cancel</button>
 						<button type="button" class="btn btn-primary"
 							(click)="save()"
 							[disabled]="!canSave"
@@ -149,7 +149,7 @@
 							@if (state === ModalState.Saving) {
 								<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving…
 							} @else {
-								Save
+								<i class="fa-solid fa-floppy-disk me-1"></i>Save
 							}
 						</button>
 					}

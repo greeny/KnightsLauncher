@@ -4,21 +4,18 @@
 	<p class="text-secondary">No versions installed yet. Use "Install New Version" to get started.</p>
 } @else {
 	@if (launchError) {
-		<div class="alert alert-danger alert-dismissible mb-3">
-			{{launchError}}
-			<button type="button" class="btn-close" (click)="launchError = null"></button>
-		</div>
+		<div class="alert alert-danger alert-dismissible mb-3 launch-error">{{launchError}}<button type="button" class="btn-close" (click)="launchError = null"></button></div>
 	}
 
-	<table class="table table-hover align-middle">
+	<table class="table table-hover align-middle version-table">
 		<thead>
 			<tr>
 				<th></th>
 				<th>Name</th>
 				<th>Version</th>
-				<th>Path</th>
+				<th class="path-column">Path</th>
 				<th>Installed</th>
-				<th style="width: 80px;"></th>
+				<th></th>
 				<th></th>
 			</tr>
 		</thead>
@@ -34,16 +31,14 @@
 							@if (isLaunching(v)) {
 								<span class="spinner-border spinner-border-sm" role="status"></span>
 							} @else {
-								▶
+								<i class="fa-solid fa-play"></i>
 							}
 						</button>
 					</td>
 					<td>{{v.name}}</td>
 					<td>{{v.version}}</td>
-					<td>
-						<code class="text-truncate d-inline-block" style="max-width: 200px;"
-							[title]="v.executablePath"
-						>{{v.executablePath}}</code>
+					<td class="path-column">
+						<code [title]="v.executablePath">{{v.executablePath}}</code>
 					</td>
 					<td>{{v.installedAt | date:'YYYY-LL-dd'}}</td>
 					<td>
@@ -52,19 +47,19 @@
 								(click)="moveUp(v)"
 								[disabled]="!canMoveUp(v)"
 								title="Move up"
-							>↑</button>
+							><i class="fa-solid fa-arrow-up"></i></button>
 							<button type="button" class="btn btn-outline-secondary"
 								(click)="moveDown(v)"
 								[disabled]="!canMoveDown(v)"
 								title="Move down"
-							>↓</button>
+							><i class="fa-solid fa-arrow-down"></i></button>
 						</div>
 					</td>
 					<td>
 						<button class="btn btn-sm btn-outline-secondary"
 							(click)="onEditClick(v)"
 							title="Edit"
-						>⚙</button>
+						><i class="fa-solid fa-pen-to-square"></i></button>
 					</td>
 				</tr>
 			}

@@ -3,12 +3,12 @@ import {CommonModule} from "@angular/common";
 import {FormsModule} from "@angular/forms";
 import {firstValueFrom} from "rxjs";
 import {open as openDialog} from "@tauri-apps/plugin-dialog";
-import {family} from "@tauri-apps/plugin-os";
 
 import {GameVersionService} from "@src/app/api/GameVersionService";
 import {ConfigService} from "@src/app/storage/ConfigService";
 import {StateService} from "@src/app/storage/StateService";
 import {DownloadService} from "@src/app/download/DownloadService";
+import {InstallationService} from "@src/app/installation/InstallationService";
 import {GameVersion} from "@src/app/api/model/GameVersion";
 
 enum ModalState
@@ -17,7 +17,6 @@ enum ModalState
 	Ready = 'ready',
 	Installing = 'installing',
 	Error = 'error',
-	Info = 'info',
 }
 
 @Component({
@@ -34,15 +33,15 @@ export class InstallVersionModalComponent
 	public readonly ModalState = ModalState;
 
 	public isOpen: boolean = false;
-	public isWindows: boolean = false;
 	public state: ModalState = ModalState.Loading;
 	public availableVersions: GameVersion[] = [];
 	public selectedVersion: GameVersion | null = null;
 	public versionName: string = '';
 	public installPath: string = '';
+	public installCommand: string = '';
+	public showAdvanced: boolean = false;
 	public errorMessage: string = '';
 	public downloadProgress: {stage: 'downloading' | 'writing' | 'verifying' | 'installing'; bytesDownloaded: number; totalBytes: number; percentComplete: number} | null = null;
-	public linuxInstallerPath: string = '';
 
 	private _installedVersionNames: Set<string> = new Set();
 
@@ -50,7 +49,8 @@ export class InstallVersionModalComponent
 		private _gameVersionService: GameVersionService,
 		private _configService: ConfigService,
 		private _stateService: StateService,
-		private _downloadService: DownloadService
+		private _downloadService: DownloadService,
+		private _installationService: InstallationService
 	) {}
 
 	public open(): void
@@ -59,8 +59,15 @@ export class InstallVersionModalComponent
 		this.selectedVersion = null;
 		this.versionName = '';
 		this.errorMessage = '';
+		this.showAdvanced = false;
+		this.installCommand = this._installationService.getDefaultInstallCommand();
 		this.state = ModalState.Loading;
 		this.loadData();
+	}
+
+	public toggleAdvanced(): void
+	{
+		this.showAdvanced = !this.showAdvanced;
 	}
 
 	public close(): void
@@ -86,8 +93,9 @@ export class InstallVersionModalComponent
 	public get canInstall(): boolean
 	{
 		return this.selectedVersion !== null
+			&& this.selectedVersion.installer !== null
 			&& this.versionName.trim() !== ''
-			&& (this.isWindows ? this.installPath.trim() !== '' : true)
+			&& this.installPath.trim() !== ''
 			&& this.state === ModalState.Ready;
 	}
 
@@ -111,24 +119,17 @@ export class InstallVersionModalComponent
 
 		this.state = ModalState.Installing;
 		this.downloadProgress = null;
-		this.linuxInstallerPath = '';
 
 		try {
-			const result = await this._downloadService.installVersion(
+			await this._downloadService.installVersion(
 				this.selectedVersion,
 				this.installPath.trim(),
 				this.versionName.trim(),
+				this.installCommand.trim(),
 				(progress) => {
 					this.downloadProgress = progress;
 				}
 			);
-
-			if (result.manualInstallPath) {
-				this.linuxInstallerPath = result.manualInstallPath;
-				this.errorMessage = 'Download complete! Automatic installation is not supported on this platform, please install the game manually using the downloaded installer.';
-				this.state = ModalState.Info;
-				return;
-			}
 
 			this.isOpen = false;
 			this.installed.emit();
@@ -138,40 +139,39 @@ export class InstallVersionModalComponent
 		}
 	}
 
-	public async openLinuxInstallerFolder(): Promise<void>
-	{
-		if (!this.linuxInstallerPath) {
-			return;
-		}
-
-		try {
-			const {Command} = await import("@tauri-apps/plugin-shell");
-			const folderPath = this.linuxInstallerPath.substring(0, this.linuxInstallerPath.lastIndexOf('/'));
-			await Command.create('sh', ['-c', `xdg-open "${folderPath}"`]).spawn();
-		} catch {
-			// If opening fails, user can still manually navigate
-		}
-	}
-
 	private async loadData(): Promise<void>
 	{
-		const [versions, config, state] = await Promise.all([
+		const [versionList, config, state] = await Promise.all([
 			firstValueFrom(this._gameVersionService.getVersions()),
 			this._configService.read(),
 			this._stateService.read(),
 		]);
 
-		if (!versions) {
+		if (!versionList) {
 			this.errorMessage = 'Could not load available versions. Check your internet connection.';
 			this.state = ModalState.Error;
 			return;
 		}
 
-		this.isWindows = family() === 'windows';
 		this._installedVersionNames = new Set(state.installedVersions.map(v => v.version));
 		this.installPath = config.defaultInstallPath;
-		this.availableVersions = this.filterAndSort(versions, config.showHiddenVersions);
+		this.availableVersions = this.filterAndSort(versionList.versions, config.showHiddenVersions);
+		this.preselectLatest(versionList.latest);
 		this.state = ModalState.Ready;
+	}
+
+	/** Pre-selects the version the API recommends (newest visible one with an installer). */
+	private preselectLatest(latest: string | null): void
+	{
+		if (latest === null) {
+			return;
+		}
+
+		const version = this.availableVersions.find(v => v.name === latest);
+		if (version) {
+			this.selectedVersion = version;
+			this.onVersionSelected();
+		}
 	}
 
 	private filterAndSort(versions: GameVersion[], showHidden: boolean): GameVersion[]

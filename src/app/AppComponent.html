@@ -2,12 +2,31 @@
 	<div class="d-flex justify-content-between align-items-center mb-4">
 		<h1>Knight's Launcher</h1>
 		<div class="d-flex gap-2">
-			<button class="btn btn-outline-secondary" (click)="openAddLocalModal()">Add Local Installation</button>
-			<button class="btn btn-primary" (click)="openInstallModal()">Install New Version</button>
+			<button class="btn btn-outline-secondary" (click)="openAddLocalModal()"><i class="fa-solid fa-folder-plus me-1"></i>Add Local Installation</button>
+			<button class="btn btn-primary" (click)="openInstallModal()"><i class="fa-solid fa-download me-1"></i>Install New Version</button>
+			<button class="btn btn-outline-secondary" (click)="openSettingsModal()" title="Settings"><i class="fa-solid fa-gear"></i></button>
 		</div>
 	</div>
 
 	<app-version-list (editRequested)="onEditRequested($event)"></app-version-list>
 	<app-install-version-modal (installed)="onVersionInstalled()"></app-install-version-modal>
 	<app-version-editor-modal (saved)="onVersionEditorSaved()"></app-version-editor-modal>
+	<app-settings-modal (saved)="onSettingsSaved()"></app-settings-modal>
+
+	@if (debugService.enabled) {
+		<div class="card mt-4">
+			<div class="card-header d-flex justify-content-between align-items-center">
+				<span><i class="fa-solid fa-bug me-1"></i>Debug Output</span>
+				<button class="btn btn-sm btn-outline-secondary" (click)="debugService.clear()"><i class="fa-solid fa-eraser me-1"></i>Clear</button>
+			</div>
+			<div class="card-body debug-output">
+				@if (debugService.entries.length === 0) {
+					<div class="text-secondary">No output yet. Launch a game to see its output here.</div>
+				}
+				@for (line of debugService.entries; track $index) {
+					<div>{{line}}</div>
+				}
+			</div>
+		</div>
+	}
 </div>

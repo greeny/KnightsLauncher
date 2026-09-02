@@ -1,46 +1,40 @@
 import {Injectable} from "@angular/core";
 import {Observable} from "rxjs";
+import {map} from "rxjs/operators";
 
 import {ApiService} from "@src/app/api/ApiService";
+import {ApiResult} from "@src/app/api/model/ApiResult";
 import {GameVersion} from "@src/app/api/model/GameVersion";
-import {VersionDownload} from "@src/app/api/model/VersionDownload";
-import {Config} from "@src/app/Config";
+import {GameVersionList} from "@src/app/api/model/GameVersionList";
 
 @Injectable({providedIn: 'root'})
 export class GameVersionService
 {
-	private static readonly BASE_PATH: string = '';
-
 	public constructor(private _api: ApiService)
 	{
 	}
 
 	/**
-	 * Returns all game versions from the server, or null if the request fails
-	 * (e.g. no internet connection).
+	 * Returns all game versions plus the recommended ("latest") one, or null
+	 * if the request fails (e.g. no internet connection). The list is sorted
+	 * descending by versionOrder by the API.
 	 */
-	public getVersions(): Observable<GameVersion[] | null>
+	public getVersions(): Observable<GameVersionList | null>
 	{
-		return this._api.get<GameVersion[]>(GameVersionService.BASE_PATH + '/versions');
-	}
-
-	/**
-	 * Returns download metadata for the given version, or null on failure.
-	 * Use the returned VersionDownload.url to perform the actual download.
-	 */
-	public getVersionDownload(versionName: string): Observable<VersionDownload | null>
-	{
-		return this._api.get<VersionDownload>(
-			`${GameVersionService.BASE_PATH}/download/${versionName}`
+		return this._api.get<GameVersionList>('/game/versions').pipe(
+			map((result) => result.data)
 		);
 	}
 
 	/**
-	 * Constructs the direct download URL for a version without an extra
-	 * API round-trip. Useful for opening in an external browser as a fallback.
+	 * Returns fresh metadata for one version right before downloading (an
+	 * installer can be replaced, which changes checksum and size). On a
+	 * success the returned version's installer is never null. On failure
+	 * data is null and errors may contain "versionNotFound" or
+	 * "installerNotAvailable".
 	 */
-	public getVersionDownloadUrl(versionName: string): string
+	public getVersionInstaller(versionName: string): Observable<ApiResult<GameVersion>>
 	{
-		return `${Config.API_BASE_URL}${GameVersionService.BASE_PATH}/download/${versionName}/file`;
+		return this._api.get<GameVersion>(`/game/installer/${versionName}`);
 	}
 }
