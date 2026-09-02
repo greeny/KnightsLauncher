@@ -5,6 +5,7 @@ import {firstValueFrom} from "rxjs";
 import {open as openDialog} from "@tauri-apps/plugin-dialog";
 
 import {GameVersionService} from "@src/app/api/GameVersionService";
+import {ApiService} from "@src/app/api/ApiService";
 import {ConfigService} from "@src/app/storage/ConfigService";
 import {StateService} from "@src/app/storage/StateService";
 import {DownloadService} from "@src/app/download/DownloadService";
@@ -47,6 +48,7 @@ export class InstallVersionModalComponent
 
 	public constructor(
 		private _gameVersionService: GameVersionService,
+		private _apiService: ApiService,
 		private _configService: ConfigService,
 		private _stateService: StateService,
 		private _downloadService: DownloadService,
@@ -141,14 +143,15 @@ export class InstallVersionModalComponent
 
 	private async loadData(): Promise<void>
 	{
-		const [versionList, config, state] = await Promise.all([
+		const [versionsResult, config, state] = await Promise.all([
 			firstValueFrom(this._gameVersionService.getVersions()),
 			this._configService.read(),
 			this._stateService.read(),
 		]);
 
+		const versionList = versionsResult.data;
 		if (!versionList) {
-			this.errorMessage = 'Could not load available versions. Check your internet connection.';
+			this.errorMessage = `Could not load available versions. ${this._apiService.failureMessage(versionsResult)}`;
 			this.state = ModalState.Error;
 			return;
 		}

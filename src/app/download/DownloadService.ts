@@ -5,8 +5,10 @@ import {writeFile, remove} from "@tauri-apps/plugin-fs";
 import {appDataDir, join} from "@tauri-apps/api/path";
 
 import {GameVersionService} from "@src/app/api/GameVersionService";
+import {ApiService} from "@src/app/api/ApiService";
 import {StateService} from "@src/app/storage/StateService";
 import {InstallationService} from "@src/app/installation/InstallationService";
+import {ApiResult} from "@src/app/api/model/ApiResult";
 import {GameVersion} from "@src/app/api/model/GameVersion";
 
 export interface DownloadProgress
@@ -22,6 +24,7 @@ export class DownloadService
 {
 	public constructor(
 		private _gameVersionService: GameVersionService,
+		private _apiService: ApiService,
 		private _stateService: StateService,
 		private _installationService: InstallationService
 	) {}
@@ -51,7 +54,7 @@ export class DownloadService
 		const installer = result.data?.installer;
 
 		if (!installer) {
-			throw new Error(this.installerErrorMessage(result.errors));
+			throw new Error(this.installerErrorMessage(result));
 		}
 
 		const installerData = await this.downloadWithProgress(installer.url, onProgress);
@@ -189,17 +192,17 @@ export class DownloadService
 	}
 
 	/** Maps the API's error keys (see launcher.md) to a user-facing message. */
-	private installerErrorMessage(errors: string[]): string
+	private installerErrorMessage(result: ApiResult<GameVersion>): string
 	{
-		if (errors.includes('installerNotAvailable')) {
+		if (result.errors.includes('installerNotAvailable')) {
 			return 'The installer for this version is not available yet. Please try again later.';
 		}
 
-		if (errors.includes('versionNotFound')) {
+		if (result.errors.includes('versionNotFound')) {
 			return 'This version no longer exists on the server.';
 		}
 
-		return 'Could not retrieve download info. Check your internet connection.';
+		return `Could not retrieve download info. ${this._apiService.failureMessage(result)}`;
 	}
 
 	private emitProgress(onProgress: ((progress: DownloadProgress) => void) | undefined, stage: DownloadProgress['stage']): void

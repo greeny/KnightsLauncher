@@ -8,10 +8,8 @@ export class Config
 	 */
 	public static readonly GAME: string = 'kmr';
 
-	/** Dev host uses plain http — the local mkcert certificate is not trusted everywhere. */
-	private static readonly DEV_HOST: string = 'http://knights-tavern.local';
-
-	private static readonly PROD_HOST: string = 'https://knights-tavern.com';
+	private static readonly DEV_HOST: string = 'https://knights-tavern.local';
+	private static readonly PROD_HOST: string = 'https://www.knights-tavern.com';
 
 	/**
 	 * Base URL for the Knight's Tavern API, including the game scope.

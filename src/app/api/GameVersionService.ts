@@ -1,6 +1,5 @@
 import {Injectable} from "@angular/core";
 import {Observable} from "rxjs";
-import {map} from "rxjs/operators";
 
 import {ApiService} from "@src/app/api/ApiService";
 import {ApiResult} from "@src/app/api/model/ApiResult";
@@ -15,15 +14,13 @@ export class GameVersionService
 	}
 
 	/**
-	 * Returns all game versions plus the recommended ("latest") one, or null
-	 * if the request fails (e.g. no internet connection). The list is sorted
-	 * descending by versionOrder by the API.
+	 * Returns all game versions plus the recommended ("latest") one. The
+	 * list is sorted descending by versionOrder by the API. On failure data
+	 * is null and the result's status/errors describe why.
 	 */
-	public getVersions(): Observable<GameVersionList | null>
+	public getVersions(): Observable<ApiResult<GameVersionList>>
 	{
-		return this._api.get<GameVersionList>('/game/versions').pipe(
-			map((result) => result.data)
-		);
+		return this._api.get<GameVersionList>('/game/versions');
 	}
 
 	/**

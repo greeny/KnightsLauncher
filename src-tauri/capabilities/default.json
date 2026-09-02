@@ -44,7 +44,8 @@
             "allow": [
                 {"url": "http://knights-tavern.local/*"},
                 {"url": "https://knights-tavern.local/*"},
-                {"url": "https://knights-tavern.com/*"}
+                {"url": "https://knights-tavern.com/*"},
+                {"url": "https://www.knights-tavern.com/*"}
             ]
         },
         "fs:default",
