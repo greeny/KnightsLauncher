@@ -10,6 +10,7 @@ import {ConfigService} from "@src/app/storage/ConfigService";
 import {StateService} from "@src/app/storage/StateService";
 import {DownloadService, DownloadProgress} from "@src/app/download/DownloadService";
 import {InstallationService} from "@src/app/installation/InstallationService";
+import {InstallLocationService} from "@src/app/installation/InstallLocationService";
 import {GameVersion} from "@src/app/api/model/GameVersion";
 
 enum ModalState
@@ -36,15 +37,23 @@ export class InstallVersionModalComponent
 	public isOpen: boolean = false;
 	public state: ModalState = ModalState.Loading;
 	public availableVersions: GameVersion[] = [];
+	public latestVersionName: string | null = null;
 	public selectedVersion: GameVersion | null = null;
 	public versionName: string = '';
-	public installPath: string = '';
+	/** Folder the per-version game folder is created in (advanced setting). */
+	public basePath: string = '';
+	/** The final game folder, previewed as "<basePath>/KaM Remake rXXXX", empty while unresolved. */
+	public resolvedInstallPath: string = '';
 	public installCommand: string = '';
 	public showAdvanced: boolean = false;
 	public errorMessage: string = '';
 	public downloadProgress: DownloadProgress | null = null;
 
 	private _installedVersionNames: Set<string> = new Set();
+	/** Whether the user typed a display name; auto-naming stops once they did. */
+	private _nameEdited: boolean = false;
+	/** Increases with every path resolution so a stale one cannot overwrite a newer result. */
+	private _resolveCounter: number = 0;
 
 	public constructor(
 		private _gameVersionService: GameVersionService,
@@ -52,7 +61,8 @@ export class InstallVersionModalComponent
 		private _configService: ConfigService,
 		private _stateService: StateService,
 		private _downloadService: DownloadService,
-		private _installationService: InstallationService
+		private _installationService: InstallationService,
+		private _installLocationService: InstallLocationService
 	) {}
 
 	public open(): void
@@ -60,8 +70,12 @@ export class InstallVersionModalComponent
 		this.isOpen = true;
 		this.selectedVersion = null;
 		this.versionName = '';
+		this.basePath = '';
+		this.resolvedInstallPath = '';
 		this.errorMessage = '';
 		this.showAdvanced = false;
+		this.downloadProgress = null;
+		this._nameEdited = false;
 		this.installCommand = this._installationService.getDefaultInstallCommand();
 		this.state = ModalState.Loading;
 		this.loadData();
@@ -85,11 +99,27 @@ export class InstallVersionModalComponent
 		return this._installedVersionNames.has(version.name);
 	}
 
+	public isLatest(version: GameVersion): boolean
+	{
+		return version.name === this.latestVersionName;
+	}
+
 	public onVersionSelected(): void
 	{
-		if (this.selectedVersion) {
-			this.versionName = this.selectedVersion.name;
+		if (this.selectedVersion && !this._nameEdited) {
+			this.versionName = this.defaultName(this.selectedVersion);
 		}
+		this.updateResolvedPath();
+	}
+
+	public onNameEdited(): void
+	{
+		this._nameEdited = this.versionName.trim() !== '';
+	}
+
+	public onBasePathEdited(): void
+	{
+		this.updateResolvedPath();
 	}
 
 	public get canInstall(): boolean
@@ -97,16 +127,17 @@ export class InstallVersionModalComponent
 		return this.selectedVersion !== null
 			&& this.selectedVersion.installer !== null
 			&& this.versionName.trim() !== ''
-			&& this.installPath.trim() !== ''
+			&& this.basePath.trim() !== ''
 			&& this.state === ModalState.Ready;
 	}
 
-	public async browsePath(): Promise<void>
+	public async browseBasePath(): Promise<void>
 	{
 		try {
-			const selected = await openDialog({directory: true, multiple: false});
+			const selected = await openDialog({directory: true, multiple: false, title: 'Choose where to install the game'});
 			if (typeof selected === 'string') {
-				this.installPath = selected;
+				this.basePath = selected;
+				this.updateResolvedPath();
 			}
 		} catch {
 			// Tauri dialog unavailable in browser dev mode — user types path manually
@@ -123,9 +154,14 @@ export class InstallVersionModalComponent
 		this.downloadProgress = null;
 
 		try {
+			// Resolved again right before installing, so a folder created in
+			// the meantime is never reused.
+			const installPath = await this._installLocationService.resolveInstallDirectory(this.basePath.trim(), this.selectedVersion.name);
+			this.resolvedInstallPath = installPath;
+
 			await this._downloadService.installVersion(
 				this.selectedVersion,
-				this.installPath.trim(),
+				installPath,
 				this.versionName.trim(),
 				this.installCommand.trim(),
 				(progress) => {
@@ -141,12 +177,21 @@ export class InstallVersionModalComponent
 		}
 	}
 
+	/** Lets the user fix the settings and retry after a failed installation. */
+	public backToForm(): void
+	{
+		this.errorMessage = '';
+		this.downloadProgress = null;
+		this.state = ModalState.Ready;
+	}
+
 	private async loadData(): Promise<void>
 	{
-		const [versionsResult, config, state] = await Promise.all([
+		const [versionsResult, config, state, defaultBasePath] = await Promise.all([
 			firstValueFrom(this._gameVersionService.getVersions()),
 			this._configService.read(),
 			this._stateService.read(),
+			this._installLocationService.getDefaultBasePath(),
 		]);
 
 		const versionList = versionsResult.data;
@@ -157,7 +202,8 @@ export class InstallVersionModalComponent
 		}
 
 		this._installedVersionNames = new Set(state.installedVersions.map(v => v.version));
-		this.installPath = config.defaultInstallPath;
+		this.basePath = defaultBasePath;
+		this.latestVersionName = versionList.latest;
 		this.availableVersions = this.filterAndSort(versionList.versions, config.showHiddenVersions);
 		this.preselectLatest(versionList.latest);
 		this.state = ModalState.Ready;
@@ -174,6 +220,26 @@ export class InstallVersionModalComponent
 		if (version) {
 			this.selectedVersion = version;
 			this.onVersionSelected();
+		}
+	}
+
+	private defaultName(version: GameVersion): string
+	{
+		return `KaM Remake ${version.name}`;
+	}
+
+	private async updateResolvedPath(): Promise<void>
+	{
+		const counter = ++this._resolveCounter;
+
+		if (!this.selectedVersion || !this.basePath.trim()) {
+			this.resolvedInstallPath = '';
+			return;
+		}
+
+		const resolved = await this._installLocationService.resolveInstallDirectory(this.basePath.trim(), this.selectedVersion.name);
+		if (counter === this._resolveCounter) {
+			this.resolvedInstallPath = resolved;
 		}
 	}
 

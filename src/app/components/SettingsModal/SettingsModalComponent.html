@@ -14,17 +14,23 @@
 						<p class="text-secondary">Loading...</p>
 					} @else {
 						<div class="mb-3">
-							<label class="form-label">Default install path</label>
+							<label class="form-label">Install location</label>
 							<div class="input-group">
 								<input type="text" class="form-control"
 									[(ngModel)]="defaultInstallPath"
-									placeholder="Select or type a path…"
+									[placeholder]="builtInInstallPath || 'Select or type a folder…'"
 								/>
+								@if (defaultInstallPath) {
+									<button class="btn btn-outline-secondary" type="button"
+										(click)="clearPath()"
+										title="Use the default location"
+									><i class="fa-solid fa-xmark"></i></button>
+								}
 								<button class="btn btn-outline-secondary" type="button"
 									(click)="browsePath()"
 								><i class="fa-solid fa-folder-open me-1"></i>Browse…</button>
 							</div>
-							<div class="form-text">Pre-filled when installing a new version.</div>
+							<div class="form-text">Every game version gets its own folder inside this location. Leave empty to use the folder shown.</div>
 						</div>
 
 						<div class="form-check mb-3">
@@ -33,7 +39,7 @@
 								[(ngModel)]="showHiddenVersions"
 							/>
 							<label class="form-check-label" for="settingShowHiddenVersions">
-								Show hidden versions in the install list
+								Offer beta and withdrawn versions when installing
 							</label>
 						</div>
 
@@ -43,7 +49,7 @@
 								[(ngModel)]="debugMode"
 							/>
 							<label class="form-check-label" for="settingDebugMode">
-								Show debug output panel (logs game launch commands and output)
+								Show debug output (technical details about launching and installing, useful when reporting problems)
 							</label>
 						</div>
 					}

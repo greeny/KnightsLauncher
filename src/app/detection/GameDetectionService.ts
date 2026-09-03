@@ -5,6 +5,13 @@ import {exists, readFile} from "@tauri-apps/plugin-fs";
 /** Regex to match version format: r followed by 4-5 digits. */
 const VERSION_PATTERN = /r\d{4,5}/i;
 
+/**
+ * Version assumed when detection fails. r6720 is the long-standing stable
+ * KaM Remake release most existing installations are, and the one whose
+ * folder carries no version marker.
+ */
+export const DEFAULT_GAME_VERSION = 'r6720';
+
 @Injectable({providedIn: 'root'})
 export class GameDetectionService
 {
@@ -15,7 +22,8 @@ export class GameDetectionService
 	 * 1. Extract version from folder name (e.g. "/path/KaM_r10000/" → "r10000")
 	 * 2. Read version from unins000.dat binary file (checks first 0x200 bytes for version string)
 	 *
-	 * Returns the detected version (e.g. "r12345") in lowercase, or "unknown" if not detected.
+	 * Returns the detected version (e.g. "r12345") in lowercase, or
+	 * DEFAULT_GAME_VERSION if not detected.
 	 */
 	public async detectVersion(executablePath: string): Promise<string>
 	{
@@ -37,7 +45,7 @@ export class GameDetectionService
 			// Silently ignore errors during detection
 		}
 
-		return 'unknown';
+		return DEFAULT_GAME_VERSION;
 	}
 
 	/** Extract version from folder path (e.g. "/path/KaM_r10000" → "r10000"). */

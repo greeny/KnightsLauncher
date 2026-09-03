@@ -3,22 +3,63 @@
 	word-break: break-word;
 }
 
-/* Every column shrinks to its content; the path column takes the rest. */
-.version-table th,
-.version-table td {
-	white-space: nowrap;
-	width: 1%;
+.version-card,
+.add-card {
+	cursor: pointer;
+	transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out, transform 0.15s ease-in-out;
 }
 
-/* max-width: 0 lets the cell truncate instead of growing with its content. */
-.version-table .path-column {
-	width: 100%;
-	max-width: 0;
+.version-card:hover,
+.version-card:focus-visible,
+.add-card:hover,
+.add-card:focus-visible {
+	border-color: var(--bs-primary);
+	box-shadow: 0 0 0 0.2rem rgba(var(--bs-primary-rgb), 0.3);
+	transform: translateY(-2px);
+	outline: none;
 }
 
-/* Block display truncates cleanly and avoids the inline-block baseline offset. */
-.version-table .path-column code {
-	display: block;
-	overflow: hidden;
-	text-overflow: ellipsis;
+.version-card.dragging {
+	opacity: 0.4;
+}
+
+.version-icon {
+	flex: 0 0 auto;
+	width: 3rem;
+	height: 3rem;
+	border-radius: 0.5rem;
+}
+
+.edit-button {
+	flex: 0 0 auto;
+	opacity: 0.6;
+}
+
+.version-card:hover .edit-button,
+.edit-button:focus-visible {
+	opacity: 1;
+}
+
+.play-hint {
+	text-align: center;
+	font-weight: 600;
+	transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+}
+
+.version-card:hover .play-hint,
+.version-card:focus-visible .play-hint {
+	background-color: var(--bs-primary);
+	color: #fff;
+}
+
+.add-card {
+	border-style: dashed;
+	background-color: transparent;
+	color: var(--bs-secondary-color);
+	min-height: 9rem;
+}
+
+.add-card:hover,
+.add-card:focus-visible {
+	color: var(--bs-primary);
 }

@@ -2,7 +2,7 @@ export interface InstalledVersion
 {
 	/** User-defined display name. Defaults to the version string on install. */
 	name: string;
-	/** Version identifier in rXXXXX format, or "unknown" if detection failed. */
+	/** Version identifier in rXXXXX format (DEFAULT_GAME_VERSION when detection failed). */
 	version: string;
 	/** Absolute path to the game executable (e.g. /path/to/KaM_Remake.exe). */
 	executablePath: string;

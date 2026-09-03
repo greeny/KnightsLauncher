@@ -51,6 +51,12 @@
                 {"path": "**"}
             ]
         },
+        {
+            "identifier": "fs:allow-remove",
+            "allow": [
+                {"path": "**"}
+            ]
+        },
         "dialog:default"
     ]
 }

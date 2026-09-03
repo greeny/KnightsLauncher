@@ -3,3 +3,8 @@
 	animation: none !important;
 	transition: width 0s !important;
 }
+
+.error-message {
+	white-space: pre-line;
+	word-break: break-word;
+}

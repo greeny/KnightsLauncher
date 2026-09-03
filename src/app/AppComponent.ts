@@ -1,6 +1,7 @@
-import {Component, OnInit, ViewChild} from "@angular/core";
+import {Component, OnInit, ViewChild, isDevMode} from "@angular/core";
 
 import {VersionListComponent} from "@src/app/components/VersionList/VersionListComponent";
+import {AddGameModalComponent} from "@src/app/components/AddGameModal/AddGameModalComponent";
 import {InstallVersionModalComponent} from "@src/app/components/InstallVersionModal/InstallVersionModalComponent";
 import {VersionEditorModalComponent} from "@src/app/components/VersionEditorModal/VersionEditorModalComponent";
 import {SettingsModalComponent} from "@src/app/components/SettingsModal/SettingsModalComponent";
@@ -16,13 +17,14 @@ const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
 @Component({
 	selector: 'app-root',
 	standalone: true,
-	imports: [VersionListComponent, InstallVersionModalComponent, VersionEditorModalComponent, SettingsModalComponent],
+	imports: [VersionListComponent, AddGameModalComponent, InstallVersionModalComponent, VersionEditorModalComponent, SettingsModalComponent],
 	templateUrl: './AppComponent.html',
 	styleUrl: './AppComponent.css'
 })
 export class AppComponent implements OnInit
 {
 	@ViewChild(VersionListComponent) private _versionList!: VersionListComponent;
+	@ViewChild(AddGameModalComponent) private _addGameModal!: AddGameModalComponent;
 	@ViewChild(InstallVersionModalComponent) private _installModal!: InstallVersionModalComponent;
 	@ViewChild(VersionEditorModalComponent) private _editorModal!: VersionEditorModalComponent;
 	@ViewChild(SettingsModalComponent) private _settingsModal!: SettingsModalComponent;
@@ -39,6 +41,8 @@ export class AppComponent implements OnInit
 
 	public async ngOnInit(): Promise<void>
 	{
+		this.disableContextMenu();
+
 		const config = await this._configService.read();
 		this.debugService.enabled = config.debugMode;
 		this.availableUpdate = await this._updateService.checkForUpdate();
@@ -46,6 +50,26 @@ export class AppComponent implements OnInit
 		// Long-running launchers keep checking, so users get new versions
 		// without restarting.
 		setInterval(() => this.recheckForUpdate(), UPDATE_CHECK_INTERVAL_MS);
+	}
+
+	/**
+	 * The webview's right-click menu (Reload, Inspect, …) gives the app away
+	 * as a web page and lets users break it by navigating; it is kept only
+	 * in dev builds and inside text fields, where copy/paste is useful.
+	 */
+	private disableContextMenu(): void
+	{
+		if (isDevMode()) {
+			return;
+		}
+
+		document.addEventListener('contextmenu', (event) => {
+			const target = event.target as HTMLElement | null;
+			if (target && (target.closest('input, textarea, .selectable, .alert') !== null)) {
+				return;
+			}
+			event.preventDefault();
+		});
 	}
 
 	private async recheckForUpdate(): Promise<void>
@@ -91,6 +115,11 @@ export class AppComponent implements OnInit
 			this.availableUpdate = null;
 			this.updateError = null;
 		}
+	}
+
+	public openAddGameModal(): void
+	{
+		this._addGameModal.open();
 	}
 
 	public openInstallModal(): void

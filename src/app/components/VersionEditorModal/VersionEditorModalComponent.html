@@ -6,41 +6,67 @@
 
 				<div class="modal-header">
 					<h5 class="modal-title">
-						@if (isConfirmingDelete) {
-							Confirm Delete
+						@if (isChoosingRemoval) {
+							Remove "{{name}}"
 						} @else {
 							{{title}}
 						}
 					</h5>
 					<button type="button" class="btn-close"
 						(click)="close()"
-						[disabled]="state === ModalState.Saving || isConfirmingDelete"
+						[disabled]="isBusy"
 					></button>
 				</div>
 
 				<div class="modal-body">
-					@if (isConfirmingDelete) {
-						<div class="alert alert-danger mb-0">
-							<p class="mb-2"><strong>Remove "{{name}}" from the launcher?</strong></p>
-							<p class="mb-0 small">Game files will not be deleted. You can re-add this version later if needed.</p>
-						</div>
-					} @else {
-						@if (state === ModalState.Error) {
-							<div class="alert alert-danger mb-3">{{errorMessage}}</div>
-						}
+					@if (state === ModalState.Error) {
+						<div class="alert alert-danger mb-3 error-message">{{errorMessage}}</div>
+					}
 
+					@if (isChoosingRemoval) {
+						@if (state === ModalState.Removing) {
+							<div class="d-flex align-items-center gap-2 text-secondary">
+								<div class="spinner-border spinner-border-sm" role="status"></div>
+								<span>{{removalStepText}}</span>
+							</div>
+							<div class="progress mt-3" style="height: 20px;">
+								<div class="progress-bar progress-bar-striped progress-bar-animated bg-danger"
+									role="progressbar"
+									style="width: 100%"
+								></div>
+							</div>
+						} @else {
+							<div class="d-flex flex-column gap-3">
+								<button type="button" class="choice-button" (click)="remove()">
+									<span class="choice-icon"><i class="fa-solid fa-eye-slash"></i></span>
+									<span>
+										<span class="choice-title">Remove from the launcher</span>
+										<span class="choice-description">The game only disappears from this list. Nothing is deleted from your computer, and you can add it again later.</span>
+									</span>
+								</button>
+
+								<button type="button" class="choice-button choice-button-danger" (click)="uninstall()">
+									<span class="choice-icon text-danger"><i class="fa-solid fa-trash-can"></i></span>
+									<span>
+										<span class="choice-title">Uninstall the game</span>
+										<span class="choice-description">Uninstalls the game and deletes its whole folder, including your saved games, downloaded maps, campaigns and campaign progress. You will be asked to confirm.</span>
+									</span>
+								</button>
+							</div>
+						}
+					} @else {
 						<!-- Basic Zone -->
 						<div class="mb-3">
-							<label class="form-label">Installation folder</label>
+							<label class="form-label">Game folder</label>
 							<div class="input-group">
 								<input type="text" class="form-control"
-									[(ngModel)]="folderPath"
+									[ngModel]="folderPath"
 									readonly
 									placeholder="(none selected)"
 								/>
 								<button class="btn btn-outline-secondary" type="button"
 									(click)="browseFolderPath()"
-									[disabled]="state === ModalState.Saving || isDetecting"
+									[disabled]="isBusy || isDetecting"
 								>
 									@if (isDetecting) {
 										<span class="spinner-border spinner-border-sm me-1" role="status"></span>Detecting…
@@ -49,14 +75,17 @@
 									}
 								</button>
 							</div>
+							@if (!isEditing) {
+								<div class="form-text">Pick the folder that contains KaM_Remake.exe. The version is detected automatically.</div>
+							}
 						</div>
 
 						<div class="mb-3">
-							<label class="form-label">Name</label>
+							<label class="form-label">Name shown in the launcher</label>
 							<input type="text" class="form-control"
 								[(ngModel)]="name"
 								placeholder="Display name for this installation"
-								[disabled]="state === ModalState.Saving"
+								[disabled]="isBusy"
 							/>
 						</div>
 
@@ -66,9 +95,9 @@
 								(click)="toggleAdvanced()"
 							>
 								@if (showAdvanced) {
-									<i class="fa-solid fa-chevron-down me-1"></i>Hide Advanced
+									<i class="fa-solid fa-chevron-down me-1"></i>Hide advanced settings
 								} @else {
-									<i class="fa-solid fa-chevron-right me-1"></i>Show Advanced
+									<i class="fa-solid fa-chevron-right me-1"></i>Advanced settings
 								}
 							</button>
 
@@ -79,9 +108,9 @@
 										<input type="text" class="form-control"
 											[(ngModel)]="detectedVersion"
 											placeholder="e.g. r6720"
-											[disabled]="state === ModalState.Saving"
+											[disabled]="isBusy || isEditing"
 										/>
-										<small class="text-secondary d-block mt-1">Auto-detected from folder or installer file. Can be edited manually.</small>
+										<small class="text-secondary d-block mt-1">Detected from the folder name or the game's uninstaller. When it cannot be detected, r6720 is assumed.</small>
 									</div>
 
 									<div class="mb-3">
@@ -90,11 +119,11 @@
 											<input type="text" class="form-control"
 												[(ngModel)]="executablePath"
 												placeholder="Path to KaM_Remake.exe"
-												[disabled]="state === ModalState.Saving"
+												[disabled]="isBusy"
 											/>
 											<button class="btn btn-outline-secondary" type="button"
 												(click)="browseExecutablePath()"
-												[disabled]="state === ModalState.Saving"
+												[disabled]="isBusy"
 											><i class="fa-solid fa-folder-open me-1"></i>Browse…</button>
 										</div>
 									</div>
@@ -104,7 +133,7 @@
 										<input type="text" class="form-control"
 											[(ngModel)]="launchArgs"
 											placeholder="(optional, use %exe% for executable name)"
-											[disabled]="state === ModalState.Saving"
+											[disabled]="isBusy"
 										/>
 										<small class="text-secondary d-block mt-1">Leave empty to use default launcher. Use %exe% as placeholder.</small>
 									</div>
@@ -115,32 +144,23 @@
 				</div>
 
 				<div class="modal-footer">
-					@if (isConfirmingDelete) {
+					@if (isChoosingRemoval) {
 						<button type="button" class="btn btn-secondary"
-							(click)="cancelDelete()"
-						><i class="fa-solid fa-xmark me-1"></i>Keep It</button>
-						<button type="button" class="btn btn-danger"
-							(click)="confirmDelete()"
-							[disabled]="state === ModalState.Saving"
-						>
-							@if (state === ModalState.Saving) {
-								<span class="spinner-border spinner-border-sm me-1" role="status"></span>Removing…
-							} @else {
-								<i class="fa-solid fa-trash-can me-1"></i>Delete Permanently
-							}
-						</button>
+							(click)="cancelRemoval()"
+							[disabled]="isBusy"
+						><i class="fa-solid fa-arrow-left me-1"></i>Back</button>
 					} @else {
 						<div class="me-auto">
-							@if (_editingPath !== null) {
-								<button type="button" class="btn btn-danger"
-									(click)="delete()"
-									[disabled]="state !== ModalState.Ready"
-								><i class="fa-solid fa-trash-can me-1"></i>Delete</button>
+							@if (isEditing) {
+								<button type="button" class="btn btn-outline-danger"
+									(click)="showRemovalChoice()"
+									[disabled]="isBusy"
+								><i class="fa-solid fa-trash-can me-1"></i>Remove…</button>
 							}
 						</div>
 						<button type="button" class="btn btn-secondary"
 							(click)="close()"
-							[disabled]="state === ModalState.Saving"
+							[disabled]="isBusy"
 						><i class="fa-solid fa-xmark me-1"></i>Cancel</button>
 						<button type="button" class="btn btn-primary"
 							(click)="save()"
@@ -148,8 +168,10 @@
 						>
 							@if (state === ModalState.Saving) {
 								<span class="spinner-border spinner-border-sm me-1" role="status"></span>Saving…
-							} @else {
+							} @else if (isEditing) {
 								<i class="fa-solid fa-floppy-disk me-1"></i>Save
+							} @else {
+								<i class="fa-solid fa-plus me-1"></i>Add
 							}
 						</button>
 					}

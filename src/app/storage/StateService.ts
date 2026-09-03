@@ -4,11 +4,12 @@ import {appDataDir} from "@tauri-apps/api/path";
 import {BaseStorageService} from "@src/app/storage/BaseStorageService";
 import {LauncherState} from "@src/app/storage/model/LauncherState";
 import {InstalledVersion} from "@src/app/storage/model/InstalledVersion";
+import {DEFAULT_GAME_VERSION} from "@src/app/detection/GameDetectionService";
 
 @Injectable({providedIn: 'root'})
 export class StateService extends BaseStorageService<LauncherState>
 {
-	protected override readonly CURRENT_SCHEMA_VERSION: number = 3;
+	protected override readonly CURRENT_SCHEMA_VERSION: number = 4;
 	protected override readonly FILENAME: string = 'state.json';
 
 	protected override getDirectory(): Promise<string>
@@ -39,6 +40,13 @@ export class StateService extends BaseStorageService<LauncherState>
 				}
 			),
 		});
+		// index 3: v3 → v4 — versions that could not be detected were stored as "unknown"
+		migrations[3] = (data) => ({
+			...data,
+			installedVersions: (data['installedVersions'] as Record<string, unknown>[]).map(
+				(v) => ({...v, version: v['version'] === 'unknown' ? DEFAULT_GAME_VERSION : v['version']})
+			),
+		});
 		return migrations;
 	}
 
@@ -62,6 +70,32 @@ export class StateService extends BaseStorageService<LauncherState>
 		);
 		version.order = maxOrder + 1;
 		state.installedVersions.push(version);
+		await this.write(state);
+	}
+
+	/**
+	 * Persists a new display order: the versions get order 0, 1, 2, … in the
+	 * sequence of the given executable paths. Versions not listed keep their
+	 * relative order after the listed ones.
+	 */
+	public async reorderInstalledVersions(executablePaths: string[]): Promise<void>
+	{
+		const state = await this.read();
+		const unlisted = state.installedVersions
+			.filter(v => !executablePaths.includes(v.executablePath))
+			.sort((a, b) => a.order - b.order);
+
+		let order = 0;
+		for (const path of executablePaths) {
+			const entry = state.installedVersions.find(v => v.executablePath === path);
+			if (entry) {
+				entry.order = order++;
+			}
+		}
+		for (const entry of unlisted) {
+			entry.order = order++;
+		}
+
 		await this.write(state);
 	}
 

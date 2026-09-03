@@ -1,0 +1,37 @@
+@if (isOpen) {
+	<div class="modal-backdrop fade show"></div>
+	<div class="modal show d-block" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+
+				<div class="modal-header">
+					<h5 class="modal-title">Add game</h5>
+					<button type="button" class="btn-close" (click)="close()"></button>
+				</div>
+
+				<div class="modal-body d-flex flex-column gap-3">
+					<button type="button" class="choice-button" (click)="chooseInstall()">
+						<span class="choice-icon text-primary"><i class="fa-solid fa-download"></i></span>
+						<span>
+							<span class="choice-title">Download and install</span>
+							<span class="choice-description">Recommended. The launcher downloads KaM Remake and installs it for you. You only need an internet connection.</span>
+						</span>
+					</button>
+
+					<button type="button" class="choice-button" (click)="chooseAddLocal()">
+						<span class="choice-icon"><i class="fa-solid fa-folder-open"></i></span>
+						<span>
+							<span class="choice-title">Add an existing installation</span>
+							<span class="choice-description">Already have KaM Remake on this computer? Pick its folder and it shows up in the launcher.</span>
+						</span>
+					</button>
+				</div>
+
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" (click)="close()"><i class="fa-solid fa-xmark me-1"></i>Cancel</button>
+				</div>
+
+			</div>
+		</div>
+	</div>
+}

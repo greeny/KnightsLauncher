@@ -5,7 +5,7 @@
 			<div class="modal-content">
 
 				<div class="modal-header">
-					<h5 class="modal-title">Install New Version</h5>
+					<h5 class="modal-title">Download and install</h5>
 					<button type="button" class="btn-close"
 						(click)="close()"
 						[disabled]="state === ModalState.Installing"
@@ -14,51 +14,39 @@
 
 				<div class="modal-body">
 					@if (state === ModalState.Loading) {
-						<p class="text-secondary">Loading available versions...</p>
+						<div class="d-flex align-items-center gap-2 text-secondary">
+							<div class="spinner-border spinner-border-sm" role="status"></div>
+							<span>Checking which versions are available…</span>
+						</div>
 					}
 
 					@if (state === ModalState.Error) {
-						<div class="alert alert-danger mb-0">{{errorMessage}}</div>
+						<div class="alert alert-danger mb-0">
+							<strong>Something went wrong.</strong>
+							<div class="mt-1 error-message">{{errorMessage}}</div>
+						</div>
 					}
 
-					@if (state === ModalState.Ready || state === ModalState.Installing) {
+					@if (state === ModalState.Ready) {
 						<div class="mb-3">
 							<label class="form-label">Version</label>
 							<select class="form-select"
 								[(ngModel)]="selectedVersion"
 								(ngModelChange)="onVersionSelected()"
-								[disabled]="state === ModalState.Installing"
 							>
 								<option [ngValue]="null" disabled>Select a version…</option>
 								@for (v of availableVersions; track v.name) {
-									<option [ngValue]="v" [disabled]="!v.installer">{{v.name}}@if (isInstalled(v)) { (Installed)}@if (!v.installer) { (installer not available yet)}</option>
+									<option [ngValue]="v" [disabled]="!v.installer">{{v.name}}@if (isLatest(v)) { – newest}@if (isInstalled(v)) { (already installed)}@if (!v.installer) { (not available yet)}</option>
 								}
 							</select>
+							<div class="form-text">The newest version is picked for you. Older versions are only needed to play with people who still use them.</div>
 						</div>
 
-						<div class="mb-3">
-							<label class="form-label">Display name</label>
-							<input type="text" class="form-control"
-								[(ngModel)]="versionName"
-								placeholder="Name for this installation"
-								[disabled]="state === ModalState.Installing"
-							/>
-						</div>
-
-						<div class="mb-3">
-							<label class="form-label">Install path</label>
-							<div class="input-group">
-								<input type="text" class="form-control"
-									[(ngModel)]="installPath"
-									placeholder="Select or type a path…"
-									[disabled]="state === ModalState.Installing"
-								/>
-								<button class="btn btn-outline-secondary" type="button"
-									(click)="browsePath()"
-									[disabled]="state === ModalState.Installing"
-								><i class="fa-solid fa-folder-open me-1"></i>Browse…</button>
+						@if (resolvedInstallPath) {
+							<div class="mb-3 small text-secondary">
+								<i class="fa-solid fa-folder me-1"></i>The game will be installed to <span class="text-body">{{resolvedInstallPath}}</span>
 							</div>
-						</div>
+						}
 
 						<!-- Advanced Zone -->
 						<div class="mt-4 pt-3 border-top">
@@ -66,19 +54,42 @@
 								(click)="toggleAdvanced()"
 							>
 								@if (showAdvanced) {
-									<i class="fa-solid fa-chevron-down me-1"></i>Hide Advanced
+									<i class="fa-solid fa-chevron-down me-1"></i>Hide advanced settings
 								} @else {
-									<i class="fa-solid fa-chevron-right me-1"></i>Show Advanced
+									<i class="fa-solid fa-chevron-right me-1"></i>Advanced settings
 								}
 							</button>
 
 							@if (showAdvanced) {
 								<div class="mt-3">
 									<div class="mb-3">
+										<label class="form-label">Name shown in the launcher</label>
+										<input type="text" class="form-control"
+											[(ngModel)]="versionName"
+											(ngModelChange)="onNameEdited()"
+											placeholder="Name for this installation"
+										/>
+									</div>
+
+									<div class="mb-3">
+										<label class="form-label">Install location</label>
+										<div class="input-group">
+											<input type="text" class="form-control"
+												[(ngModel)]="basePath"
+												(ngModelChange)="onBasePathEdited()"
+												placeholder="Select or type a folder…"
+											/>
+											<button class="btn btn-outline-secondary" type="button"
+												(click)="browseBasePath()"
+											><i class="fa-solid fa-folder-open me-1"></i>Browse…</button>
+										</div>
+										<div class="form-text">A new folder named "KaM Remake {{selectedVersion?.name ?? 'rXXXX'}}" is created inside this location.</div>
+									</div>
+
+									<div class="mb-3">
 										<label class="form-label">Install command</label>
 										<input type="text" class="form-control"
 											[(ngModel)]="installCommand"
-											[disabled]="state === ModalState.Installing"
 										/>
 										<small class="text-secondary d-block mt-1">Use %exe% as placeholder for the installer file and %dir% for the install path. The default installer arguments (silent install into the chosen path) replace %args%, or are appended automatically when %args% is not used.</small>
 									</div>
@@ -88,60 +99,73 @@
 					}
 
 					@if (state === ModalState.Installing) {
+						<p class="mb-3">Installing <strong>{{versionName}}</strong> to <span class="text-secondary">{{resolvedInstallPath}}</span></p>
+
 						@if (downloadProgress) {
-							<div>
-								@if (downloadProgress.stage === 'downloading') {
-									<div class="mb-2">
-										<small class="text-secondary">Downloading {{selectedVersion?.name}}…</small>
-										<div class="progress mt-2 progress-no-animation" style="height: 20px;">
-											<div class="progress-bar progress-bar-striped"
-												role="progressbar"
-												[style.width.%]="downloadProgress.percentComplete"
-												[attr.aria-valuenow]="downloadProgress.percentComplete"
-												aria-valuemin="0"
-												aria-valuemax="100"
-											>
-												{{downloadProgress.percentComplete}}%
-											</div>
+							@if (downloadProgress.stage === 'downloading') {
+								<div class="mb-2">
+									<small class="text-secondary">Step 1 of 3: Downloading {{selectedVersion?.name}}…</small>
+									<div class="progress mt-2 progress-no-animation" style="height: 20px;">
+										<div class="progress-bar progress-bar-striped"
+											role="progressbar"
+											[style.width.%]="downloadProgress.percentComplete"
+											[attr.aria-valuenow]="downloadProgress.percentComplete"
+											aria-valuemin="0"
+											aria-valuemax="100"
+										>
+											{{downloadProgress.percentComplete}}%
 										</div>
-										<small class="text-secondary d-block mt-1">
-											{{(downloadProgress.bytesDownloaded / 1024 / 1024).toFixed(1)}} MiB / {{(downloadProgress.totalBytes / 1024 / 1024).toFixed(1)}} MiB
-										</small>
 									</div>
-								} @else if (downloadProgress.stage === 'verifying') {
-									<div class="d-flex align-items-center gap-2 text-secondary">
-										<div class="spinner-border spinner-border-sm" role="status"></div>
-										<span>Verifying checksum…</span>
-									</div>
-									<div class="progress mt-3" style="height: 20px;">
-										<div class="progress-bar progress-bar-striped progress-bar-animated"
-											role="progressbar"
-											style="width: 100%"
-										></div>
-									</div>
-								} @else if (downloadProgress.stage === 'installing') {
-									<div class="d-flex align-items-center gap-2 text-secondary">
-										<div class="spinner-border spinner-border-sm" role="status"></div>
-										<span>Installing {{selectedVersion?.name}}…</span>
-									</div>
-									<div class="progress mt-3" style="height: 20px;">
-										<div class="progress-bar progress-bar-striped progress-bar-animated"
-											role="progressbar"
-											style="width: 100%"
-										></div>
-									</div>
-								}
-							</div>
+									<small class="text-secondary d-block mt-1">
+										{{(downloadProgress.bytesDownloaded / 1024 / 1024).toFixed(1)}} MiB / {{(downloadProgress.totalBytes / 1024 / 1024).toFixed(1)}} MiB
+									</small>
+								</div>
+							} @else if (downloadProgress.stage === 'verifying') {
+								<div class="d-flex align-items-center gap-2 text-secondary">
+									<div class="spinner-border spinner-border-sm" role="status"></div>
+									<span>Step 2 of 3: Checking the downloaded file…</span>
+								</div>
+								<div class="progress mt-3" style="height: 20px;">
+									<div class="progress-bar progress-bar-striped progress-bar-animated"
+										role="progressbar"
+										style="width: 100%"
+									></div>
+								</div>
+							} @else if (downloadProgress.stage === 'installing') {
+								<div class="d-flex align-items-center gap-2 text-secondary">
+									<div class="spinner-border spinner-border-sm" role="status"></div>
+									<span>Step 3 of 3: Installing…</span>
+								</div>
+								<div class="progress mt-3" style="height: 20px;">
+									<div class="progress-bar progress-bar-striped progress-bar-animated"
+										role="progressbar"
+										style="width: 100%"
+									></div>
+								</div>
+								<small class="text-secondary d-block mt-2 text-truncate">
+									{{downloadProgress.detail ?? 'Starting the installer…'}}
+									@if (downloadProgress.filesInstalled > 0) {
+										({{downloadProgress.filesInstalled}} files so far)
+									}
+								</small>
+							}
 						} @else {
 							<div class="d-flex align-items-center gap-2 text-secondary">
 								<div class="spinner-border spinner-border-sm" role="status"></div>
 								<span>Starting…</span>
 							</div>
 						}
+
+						<p class="small text-secondary mt-3 mb-0">This can take a few minutes. Please keep the launcher open.</p>
 					}
 				</div>
 
 				<div class="modal-footer">
+					@if (state === ModalState.Error && availableVersions.length > 0) {
+						<button type="button" class="btn btn-outline-secondary me-auto"
+							(click)="backToForm()"
+						><i class="fa-solid fa-arrow-left me-1"></i>Back</button>
+					}
 					<button type="button" class="btn btn-secondary"
 						(click)="close()"
 						[disabled]="state === ModalState.Installing"
@@ -149,7 +173,13 @@
 					<button type="button" class="btn btn-primary"
 						(click)="install()"
 						[disabled]="!canInstall"
-					><i class="fa-solid fa-download me-1"></i>Install</button>
+					>
+						@if (state === ModalState.Installing) {
+							<span class="spinner-border spinner-border-sm me-1" role="status"></span>Installing…
+						} @else {
+							<i class="fa-solid fa-download me-1"></i>Install
+						}
+					</button>
 				</div>
 
 			</div>

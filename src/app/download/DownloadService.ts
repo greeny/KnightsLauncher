@@ -20,6 +20,10 @@ export interface DownloadProgress
 	bytesDownloaded: number;
 	totalBytes: number;
 	percentComplete: number;
+	/** What the installer is doing right now (installing stage only), e.g. "Installing KaM_Remake.exe". */
+	detail: string | null;
+	/** Number of files the installer has written so far (installing stage only). */
+	filesInstalled: number;
 }
 
 @Injectable({providedIn: 'root'})
@@ -36,8 +40,10 @@ export class DownloadService
 
 	/**
 	 * Downloads a game version installer, verifies checksum, runs the
-	 * installer (via installCommand, or the platform default when empty),
-	 * records the version in state and cleans up the installer file.
+	 * installer (via installCommand, or the platform default when empty)
+	 * into installPath, which must be the final game folder (see
+	 * InstallLocationService.resolveInstallDirectory), records the version
+	 * in state and cleans up the installer file.
 	 *
 	 * The download streams directly to disk (upload plugin) and the checksum
 	 * is computed natively (sha256_file command), so installers of any size
@@ -47,7 +53,8 @@ export class DownloadService
 	 * A failed installation leaves nothing behind: the version is not
 	 * recorded and the downloaded installer is removed.
 	 *
-	 * Emits progress updates during download.
+	 * Emits progress updates during download and, while the installer runs,
+	 * the step it is currently at.
 	 * Throws descriptive Error on any failure.
 	 */
 	public async installVersion(
@@ -95,7 +102,18 @@ export class DownloadService
 		this.emitProgress(onProgress, 'installing');
 
 		try {
-			await this._installationService.runInstaller(installerPath, installPath, installCommand);
+			await this._installationService.runInstaller(installerPath, installPath, installCommand, (installerProgress) => {
+				if (onProgress) {
+					onProgress({
+						stage: 'installing',
+						bytesDownloaded: 0,
+						totalBytes: 0,
+						percentComplete: 0,
+						detail: installerProgress.step,
+						filesInstalled: installerProgress.filesInstalled,
+					});
+				}
+			});
 		} catch (error) {
 			await this.tryRemove(installerPath);
 			throw new Error(`Installation failed: ${this.errorMessage(error)}`);
@@ -142,6 +160,8 @@ export class DownloadService
 					bytesDownloaded: event.progressTotal,
 					totalBytes,
 					percentComplete: totalBytes > 0 ? Math.round((event.progressTotal / totalBytes) * 100) : 0,
+					detail: null,
+					filesInstalled: 0,
 				}));
 			});
 		} catch (error) {
@@ -199,7 +219,7 @@ export class DownloadService
 	private emitProgress(onProgress: ((progress: DownloadProgress) => void) | undefined, stage: DownloadProgress['stage']): void
 	{
 		if (onProgress) {
-			onProgress({stage, bytesDownloaded: 0, totalBytes: 0, percentComplete: 0});
+			onProgress({stage, bytesDownloaded: 0, totalBytes: 0, percentComplete: 0, detail: null, filesInstalled: 0});
 		}
 	}
 
